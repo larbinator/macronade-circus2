@@ -1,0 +1,161 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 222 47% 11%;
+  --foreground: 214 32% 91%;
+  --panel: 215 28% 17%;
+  --muted: 215 23% 23%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 0 74% 57%;
+  --accent-foreground: 0 0% 100%;
+  --card: 215 28% 17%;
+  --card-foreground: 214 32% 91%;
+  --border: 215 19% 27%;
+  --input: 222 39% 11%;
+  --ring: 0 74% 57%;
+  --primary: 0 74% 57%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 215 28% 17%;
+  --secondary-foreground: 214 32% 91%;
+  --radius: 12px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Poppins", "Segoe UI", sans-serif;
+  color: hsl(var(--foreground));
+  background-color: #0f172a;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #0f172a;
+}
+
+.scene-stage {
+  background-color: #0f172a;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  box-shadow: none;
+  position: relative;
+}
+
+.overlay-panel {
+  background-color: rgba(31, 41, 55, 0.96);
+  border: 1px solid #374151;
+  border-radius: 12px;
+  box-shadow: 0 18px 30px rgba(2, 6, 23, 0.45);
+  backdrop-filter: none;
+}
+
+.overlay-header {
+  background-color: rgba(39, 49, 68, 0.95);
+  border-bottom: 1px solid rgba(55, 65, 81, 0.9);
+}
+
+.panel-corner {
+  height: 18px;
+  width: 18px;
+  z-index: 20;
+  opacity: 0.7;
+}
+
+.panel-corner::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 2px solid rgba(148, 163, 184, 0.5);
+  border-radius: 3px;
+}
+
+.panel-corner--tl {
+  left: 6px;
+  top: 6px;
+  cursor: nwse-resize;
+}
+
+.panel-corner--tl::after {
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+}
+
+.panel-corner--tr {
+  right: 6px;
+  top: 6px;
+  cursor: nesw-resize;
+}
+
+.panel-corner--tr::after {
+  border-left-color: transparent;
+  border-bottom-color: transparent;
+}
+
+.panel-corner--bl {
+  bottom: 6px;
+  left: 6px;
+  cursor: nesw-resize;
+}
+
+.panel-corner--bl::after {
+  border-right-color: transparent;
+  border-top-color: transparent;
+}
+
+.panel-corner--br {
+  bottom: 6px;
+  right: 6px;
+  cursor: nwse-resize;
+}
+
+.panel-corner--br::after {
+  border-left-color: transparent;
+  border-top-color: transparent;
+}
+
+.shadow-panel {
+  box-shadow: 0 18px 30px rgba(2, 6, 23, 0.45);
+}
+
+.shadow-overlay {
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.35);
+}
+
+.timeline-ruler {
+  background-image:
+    linear-gradient(90deg, rgba(71, 85, 105, 0.7) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(71, 85, 105, 0.35) 1px, transparent 1px);
+  background-size: 24px 100%, 120px 100%;
+}
+
+.timeline-track {
+  background-image: linear-gradient(90deg, rgba(71, 85, 105, 0.35) 1px, transparent 1px);
+  background-size: 24px 100%;
+}
+
+.timeline-scrub {
+  background-image: linear-gradient(90deg, rgba(229, 62, 62, 0.2) 1px, transparent 1px);
+  background-size: 24px 100%;
+}
+
+.kf-dot {
+  width: 10px;
+  height: 10px;
+  transform: rotate(45deg);
+}

@@ -1,0 +1,105 @@
+{
+  "pantins": [
+    {
+      "id": "manu_test",
+      "path": "/pantins/manu_test.svg",
+      "rotatableMembers": [
+        "torse",
+        "cuisse_droite",
+        "tibia_droite",
+        "pied_droite",
+        "cuisse_gauche",
+        "tibia_gauche",
+        "pied_gauche",
+        "tete",
+        "bras_gauche",
+        "av-bras_gauche",
+        "main_gauche",
+        "bras_droite",
+        "av-bras_droite",
+        "main_droite"
+      ],
+      "variants": {
+        "bouche": {
+          "variants": [
+            {
+              "name": "bouche_defaut",
+              "visible": true
+            },
+            {
+              "name": "bouche_a",
+              "visible": false
+            },
+            {
+              "name": "bouche_f",
+              "visible": false
+            },
+            {
+              "name": "bouche_o",
+              "visible": false
+            },
+            {
+              "name": "bouche_ch",
+              "visible": false
+            },
+            {
+              "name": "bouche_r",
+              "visible": false
+            },
+            {
+              "name": "bouche_l",
+              "visible": false
+            },
+            {
+              "name": "bouche_c",
+              "visible": false
+            },
+            {
+              "name": "bouche_u",
+              "visible": false
+            },
+            {
+              "name": "bouche_b",
+              "visible": false
+            },
+            {
+              "name": "bouche_ou",
+              "visible": false
+            },
+            {
+              "name": "bouche_th",
+              "visible": false
+            }
+          ],
+          "defaultVariant": "bouche_defaut"
+        },
+        "main_gauche": {
+          "variants": [
+            {
+              "name": "recto",
+              "visible": true
+            },
+            {
+              "name": "verso",
+              "visible": false
+            }
+          ],
+          "defaultVariant": "recto"
+        },
+        "main_droite": {
+          "variants": [
+            {
+              "name": "recto",
+              "visible": true
+            },
+            {
+              "name": "verso",
+              "visible": false
+            }
+          ],
+          "defaultVariant": "recto"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "categories": [
+    {
+      "id": "pantins",
+      "label": "Pantins",
+      "items": [
+        {
+          "id": "manu_test",
+          "label": "Manu Test",
+          "path": "/pantins/manu_test.svg",
+          "type": "svg"
+        }
+      ]
+    },
+    {
+      "id": "decors",
+      "label": "Decors",
+      "items": [
+        {
+          "id": "bureau",
+          "label": "Bureau",
+          "path": "/decors/bureau.png",
+          "type": "png"
+        },
+        {
+          "id": "defaut",
+          "label": "Defaut",
+          "path": "/decors/defaut.png",
+          "type": "png"
+        }
+      ]
+    },
+    {
+      "id": "objets",
+      "label": "Objets",
+      "items": [
+        {
+          "id": "basse",
+          "label": "Basse",
+          "path": "/objets/basse.svg",
+          "type": "svg"
+        },
+        {
+          "id": "faucille",
+          "label": "Faucille",
+          "path": "/objets/faucille.svg",
+          "type": "svg"
+        },
+        {
+          "id": "laurier",
+          "label": "Laurier",
+          "path": "/objets/laurier.svg",
+          "type": "svg"
+        },
+        {
+          "id": "lunettes_manu",
+          "label": "Lunettes Manu",
+          "path": "/objets/lunettes_manu.svg",
+          "type": "svg"
+        },
+        {
+          "id": "marteau",
+          "label": "Marteau",
+          "path": "/objets/marteau.svg",
+          "type": "svg"
+        }
+      ]
+    }
+  ]
+}
