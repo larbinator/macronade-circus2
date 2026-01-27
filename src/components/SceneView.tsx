@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 type SceneViewProps = {
   className?: string
   zoom?: number
+  showHandles?: boolean
 }
 
 type DragState = {
@@ -18,6 +19,23 @@ type SvgAsset = {
   viewBox: string | null
 }
 
+type RotationDragState = {
+  itemId: number
+  memberId: string
+  startAngle: number
+  startPointerAngle: number
+  pivot: { x: number; y: number }
+}
+
+type HandleInfo = {
+  itemId: number
+  memberId: string
+  x: number
+  y: number
+  pivotX: number
+  pivotY: number
+}
+
 const getSvgPoint = (svg: SVGSVGElement, clientX: number, clientY: number) => {
   const point = new DOMPoint(clientX, clientY)
   const ctm = svg.getScreenCTM()
@@ -28,15 +46,18 @@ const getSvgPoint = (svg: SVGSVGElement, clientX: number, clientY: number) => {
   return { x: transformed.x, y: transformed.y }
 }
 
-export function SceneView({ className, zoom = 1 }: SceneViewProps) {
+export function SceneView({ className, zoom = 1, showHandles = true }: SceneViewProps) {
   const { state, dispatch } = useAppState()
   const { scene, layers, selection } = state
   const containerRef = React.useRef<HTMLDivElement>(null)
   const svgRef = React.useRef<SVGSVGElement>(null)
   const dragRef = React.useRef<DragState | null>(null)
+  const rotationRef = React.useRef<RotationDragState | null>(null)
   const [size, setSize] = React.useState({ w: 0, h: 0 })
   const [svgAssets, setSvgAssets] = React.useState<Record<string, SvgAsset>>({})
   const svgAssetsRef = React.useRef<Record<string, SvgAsset>>({})
+  const pantinRefs = React.useRef<Map<number, SVGSVGElement>>(new Map())
+  const [handles, setHandles] = React.useState<HandleInfo[]>([])
 
   React.useEffect(() => {
     if (!scene.backgroundPath) {
@@ -97,9 +118,15 @@ export function SceneView({ className, zoom = 1 }: SceneViewProps) {
   }, [scene.items])
 
   const applyVariants = React.useCallback(
-    (asset: SvgAsset, variants?: Record<string, string>) => {
+    (
+      asset: SvgAsset,
+      variants?: Record<string, string>,
+      memberRotations?: Record<string, number>,
+    ) => {
       if (!variants || Object.keys(variants).length === 0) {
-        return asset.inner
+        if (!memberRotations || Object.keys(memberRotations).length === 0) {
+          return asset.inner
+        }
       }
       const parser = new DOMParser()
       const doc = parser.parseFromString(
@@ -119,6 +146,21 @@ export function SceneView({ className, zoom = 1 }: SceneViewProps) {
         }
         group.setAttribute("visibility", selected === variantName ? "visible" : "hidden")
       })
+      if (memberRotations) {
+        Object.entries(memberRotations).forEach(([memberId, angle]) => {
+          const target = doc.getElementById(memberId)
+          if (!target) {
+            return
+          }
+          const normalized = Number.isFinite(angle) ? angle : 0
+          if (normalized === 0) {
+            return
+          }
+          const existing = target.getAttribute("transform") ?? ""
+          const nextTransform = `${existing} rotate(${normalized})`.trim()
+          target.setAttribute("transform", nextTransform)
+        })
+      }
       const svg = doc.querySelector("svg")
       return svg?.innerHTML ?? asset.inner
     },
@@ -181,6 +223,30 @@ export function SceneView({ className, zoom = 1 }: SceneViewProps) {
   }
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (rotationRef.current) {
+      const state = rotationRef.current
+      const angle = Math.atan2(
+        event.clientY - state.pivot.y,
+        event.clientX - state.pivot.x,
+      )
+      const delta = ((angle - state.startPointerAngle) * 180) / Math.PI
+      const nextAngle = state.startAngle + delta
+      const item = scene.items.find((entry) => entry.id === state.itemId)
+      if (!item) {
+        return
+      }
+      dispatch({
+        type: "scene/update-item",
+        itemId: state.itemId,
+        patch: {
+          memberRotations: {
+            ...(item.memberRotations ?? {}),
+            [state.memberId]: nextAngle,
+          },
+        },
+      })
+      return
+    }
     if (!dragRef.current || !svgRef.current) {
       return
     }
@@ -196,6 +262,9 @@ export function SceneView({ className, zoom = 1 }: SceneViewProps) {
   }
 
   const stopDrag = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (rotationRef.current) {
+      rotationRef.current = null
+    }
     if (dragRef.current) {
       dragRef.current = null
     }
@@ -212,6 +281,8 @@ export function SceneView({ className, zoom = 1 }: SceneViewProps) {
     selection?.type === "scene"
       ? scene.items.find((item) => item.id === selection.itemId) ?? null
       : null
+  const selectedPantin =
+    selectedItem && selectedItem.kind === "pantin" ? selectedItem : null
 
   const backgroundLayer = layers.items.find((layer) => layer.id === 0)
   const showBackground = backgroundLayer?.visible ?? true
@@ -222,6 +293,169 @@ export function SceneView({ className, zoom = 1 }: SceneViewProps) {
   const viewBoxHeight = viewHeight / safeZoom
   const viewBoxX = (viewWidth - viewBoxWidth) / 2
   const viewBoxY = (viewHeight - viewBoxHeight) / 2
+
+  React.useLayoutEffect(() => {
+    if (!showHandles || !selectedPantin) {
+      setHandles([])
+      return
+    }
+    const pantinRoot = pantinRefs.current.get(selectedPantin.id)
+    if (!pantinRoot) {
+      setHandles([])
+      return
+    }
+    const frame = requestAnimationFrame(() => {
+      const nextHandles: HandleInfo[] = []
+      const groups = pantinRoot.querySelectorAll<SVGGElement>("g[data-isrotatable='true']")
+      const sceneCtm = svgRef.current?.getScreenCTM()
+      if (!sceneCtm) {
+        setHandles([])
+        return
+      }
+      const sceneInverse = sceneCtm.inverse()
+
+      const getMemberCenter = (group: SVGGElement) => {
+        const groupCTM = group.getCTM()
+        if (!groupCTM) {
+          return null
+        }
+        const groupInverse = groupCTM.inverse()
+        let minX = Number.POSITIVE_INFINITY
+        let minY = Number.POSITIVE_INFINITY
+        let maxX = Number.NEGATIVE_INFINITY
+        let maxY = Number.NEGATIVE_INFINITY
+        let hasBounds = false
+        const elements = group.querySelectorAll<SVGGraphicsElement>("*")
+        elements.forEach((element) => {
+          const closest = element.closest("g[data-isrotatable='true']")
+          if (closest !== group) {
+            return
+          }
+          if (!(element instanceof SVGGraphicsElement)) {
+            return
+          }
+          const bbox = element.getBBox()
+          const elementCTM = element.getCTM()
+          if (!elementCTM) {
+            return
+          }
+          const points = [
+            new DOMPoint(bbox.x, bbox.y),
+            new DOMPoint(bbox.x + bbox.width, bbox.y),
+            new DOMPoint(bbox.x, bbox.y + bbox.height),
+            new DOMPoint(bbox.x + bbox.width, bbox.y + bbox.height),
+          ]
+          points.forEach((point) => {
+            const inGroup = point
+              .matrixTransform(elementCTM)
+              .matrixTransform(groupInverse)
+            minX = Math.min(minX, inGroup.x)
+            minY = Math.min(minY, inGroup.y)
+            maxX = Math.max(maxX, inGroup.x)
+            maxY = Math.max(maxY, inGroup.y)
+            hasBounds = true
+          })
+        })
+        if (!hasBounds) {
+          return null
+        }
+        return {
+          x: (minX + maxX) / 2,
+          y: (minY + maxY) / 2,
+        }
+      }
+
+      groups.forEach((group) => {
+        const memberId = group.id
+        if (!memberId) {
+          return
+        }
+        try {
+          const center = getMemberCenter(group)
+          if (!center) {
+            return
+          }
+          const groupScreenCTM = group.getScreenCTM()
+          if (!groupScreenCTM) {
+            return
+          }
+          const pivotScreen = new DOMPoint(0, 0).matrixTransform(groupScreenCTM)
+          const handleScreen = new DOMPoint(center.x, center.y).matrixTransform(
+            groupScreenCTM,
+          )
+          const pivotScene = pivotScreen.matrixTransform(sceneInverse)
+          const handleScene = handleScreen.matrixTransform(sceneInverse)
+          nextHandles.push({
+            itemId: selectedPantin.id,
+            memberId,
+            x: handleScene.x,
+            y: handleScene.y,
+            pivotX: pivotScene.x,
+            pivotY: pivotScene.y,
+          })
+        } catch {
+          return
+        }
+      })
+      setHandles(nextHandles)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [
+    scene.items,
+    selectedPantin?.id,
+    selectedPantin?.rotation,
+    selectedPantin?.assetPath,
+    selectedPantin?.scale,
+    selectedPantin?.width,
+    selectedPantin?.height,
+    selectedPantin?.x,
+    selectedPantin?.y,
+    svgAssets,
+    showHandles,
+  ])
+
+  const startMemberRotation = (
+    event: React.PointerEvent<SVGCircleElement>,
+    itemId: number,
+    memberId: string,
+  ) => {
+    event.stopPropagation()
+    if (event.button !== 0) {
+      return
+    }
+    const svgElement = pantinRefs.current.get(itemId)
+    if (!svgElement) {
+      return
+    }
+    const target = svgElement.querySelector<SVGGElement>(
+      `#${CSS.escape(memberId)}`,
+    )
+    if (!target) {
+      return
+    }
+    const ctm = target.getScreenCTM()
+    if (!ctm) {
+      return
+    }
+    const pivotPoint = new DOMPoint(0, 0).matrixTransform(ctm)
+    const item = scene.items.find((entry) => entry.id === itemId)
+    const startAngle =
+      item && item.memberRotations ? item.memberRotations[memberId] ?? 0 : 0
+    const startPointerAngle = Math.atan2(
+      event.clientY - pivotPoint.y,
+      event.clientX - pivotPoint.x,
+    )
+    rotationRef.current = {
+      itemId,
+      memberId,
+      startAngle,
+      startPointerAngle,
+      pivot: { x: pivotPoint.x, y: pivotPoint.y },
+    }
+    if (svgRef.current) {
+      svgRef.current.setPointerCapture(event.pointerId)
+    }
+  }
 
 
   return (
@@ -279,11 +513,18 @@ export function SceneView({ className, zoom = 1 }: SceneViewProps) {
                 </g>
               )
             }
-            const inner = applyVariants(asset, item.variants)
+            const inner = applyVariants(asset, item.variants, item.memberRotations)
             const viewBox = asset.viewBox ?? `0 0 ${item.width} ${item.height}`
             return (
               <g key={item.id} transform={`rotate(${item.rotation} ${cx} ${cy})`}>
                 <svg
+                  ref={(node) => {
+                    if (node) {
+                      pantinRefs.current.set(item.id, node)
+                    } else {
+                      pantinRefs.current.delete(item.id)
+                    }
+                  }}
                   x={item.x}
                   y={item.y}
                   width={width}
@@ -356,6 +597,33 @@ export function SceneView({ className, zoom = 1 }: SceneViewProps) {
             )
           })()
         ) : null}
+
+        {showHandles && selectedPantin
+          ? handles.map((handle) => (
+              <g key={`${handle.itemId}:${handle.memberId}`}>
+                <circle
+                  cx={handle.x}
+                  cy={handle.y}
+                  r={6}
+                  fill="#E53E3E"
+                  stroke="#C53030"
+                  strokeWidth={2}
+                  onPointerDown={(event) =>
+                    startMemberRotation(event, handle.itemId, handle.memberId)
+                  }
+                />
+                <circle
+                  cx={handle.x}
+                  cy={handle.y}
+                  r={12}
+                  fill="transparent"
+                  onPointerDown={(event) =>
+                    startMemberRotation(event, handle.itemId, handle.memberId)
+                  }
+                />
+              </g>
+            ))
+          : null}
 
       </svg>
     </div>

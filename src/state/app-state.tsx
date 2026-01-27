@@ -30,6 +30,7 @@ export type SceneItem = {
   width: number
   height: number
   variants?: Record<string, string>
+  memberRotations?: Record<string, number>
 }
 
 export type SceneState = {
@@ -332,6 +333,7 @@ function reducer(state: AppState, action: Action): AppState {
         width: size.width,
         height: size.height,
         variants: kind === "pantin" ? {} : undefined,
+        memberRotations: kind === "pantin" ? {} : undefined,
       }
       const newLayer: LayerItem = {
         id: nextId,

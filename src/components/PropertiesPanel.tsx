@@ -124,7 +124,9 @@ export function PropertiesPanel() {
   const variantGroups = selectedPantinDefinition
     ? Object.entries(selectedPantinDefinition.variants ?? {})
     : []
+  const rotatableMembers = selectedPantinDefinition?.rotatableMembers ?? []
   const itemVariants = selectedSceneItem?.variants ?? {}
+  const memberRotations = selectedSceneItem?.memberRotations ?? {}
 
   const pantinItems = state.scene.items.filter((item) => item.kind === "pantin")
   const attachPantin =
@@ -332,6 +334,56 @@ export function PropertiesPanel() {
             </div>
           </div>
 
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Membres rotatables
+            </div>
+            <div className="mt-3 flex flex-col gap-2">
+              {pantinsStatus === "loading" ? (
+                <div className="text-sm text-muted-foreground">Chargement...</div>
+              ) : pantinsStatus === "error" ? (
+                <div className="text-sm text-muted-foreground">
+                  Manifest introuvable.
+                </div>
+              ) : !selectedPantinDefinition ? (
+                <div className="text-sm text-muted-foreground">
+                  Aucun pantin selectionne.
+                </div>
+              ) : rotatableMembers.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  Aucun membre rotatable.
+                </div>
+              ) : (
+                rotatableMembers.map((member) => (
+                  <FieldRow key={member} label={member}>
+                    <SmallInput
+                      type="number"
+                      className="w-20"
+                      value={Math.round(memberRotations[member] ?? 0)}
+                      onChange={(event) => {
+                        if (!selectedSceneItem) {
+                          return
+                        }
+                        const value = Number(event.target.value)
+                        if (!Number.isNaN(value)) {
+                          dispatch({
+                            type: "scene/update-item",
+                            itemId: selectedSceneItem.id,
+                            patch: {
+                              memberRotations: {
+                                ...memberRotations,
+                                [member]: value,
+                              },
+                            },
+                          })
+                        }
+                      }}
+                    />
+                  </FieldRow>
+                ))
+              )}
+            </div>
+          </div>
         </>
       ) : null}
 

@@ -11,6 +11,7 @@ import {
   BookOpen,
   Film,
   FolderOpen,
+  Hand,
   LayoutDashboard,
   Layers,
   Maximize2,
@@ -26,6 +27,12 @@ const toolsItems = [
   { id: "zoom-out", label: "Zoom arriere", icon: <ZoomOut className="h-4 w-4" /> },
   { id: "zoom-in", label: "Zoom avant", icon: <ZoomIn className="h-4 w-4" /> },
   { id: "fit", label: "Ajuster a la vue", icon: <Maximize2 className="h-4 w-4" /> },
+  {
+    id: "handles",
+    label: "Poignees",
+    icon: <Hand className="h-4 w-4" />,
+    type: "toggle" as const,
+  },
   {
     id: "onion",
     label: "Onion skin",
@@ -84,6 +91,7 @@ export default function App() {
   })
   const [sceneZoom, setSceneZoom] = React.useState(1)
   const [toolsToggles, setToolsToggles] = React.useState({
+    handles: true,
     onion: false,
   })
 
@@ -145,6 +153,7 @@ export default function App() {
 
   const toolsToggleState = React.useMemo(
     () => ({
+      handles: toolsToggles.handles,
       onion: toolsToggles.onion,
     }),
     [toolsToggles],
@@ -153,6 +162,8 @@ export default function App() {
   const handleToolsToggle = React.useCallback((id: string, pressed: boolean) => {
     setToolsToggles((prev) => {
       switch (id) {
+        case "handles":
+          return { ...prev, handles: pressed }
         case "onion":
           return { ...prev, onion: pressed }
         default:
@@ -193,7 +204,7 @@ export default function App() {
             />
 
             <div className="relative flex flex-1 min-h-0 w-full">
-              <SceneView zoom={sceneZoom} />
+              <SceneView zoom={sceneZoom} showHandles={toolsToggles.handles} />
             </div>
 
             {panelVisibility.library ? (
