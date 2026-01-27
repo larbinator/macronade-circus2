@@ -41,6 +41,59 @@ body {
   overflow: hidden;
 }
 
+.scroll-area-viewport {
+  scrollbar-width: none;
+}
+
+.scroll-area--with-bars .scroll-area-viewport {
+  padding-right: 6px;
+  padding-bottom: 6px;
+}
+
+.scroll-area-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.scroll-area-track {
+  position: absolute;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.scroll-area-track[data-visible="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.scroll-area-track-y {
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+}
+
+.scroll-area-track-x {
+  left: 0;
+  bottom: 0;
+  height: 6px;
+  width: 100%;
+}
+
+.scroll-area-thumb {
+  position: absolute;
+  inset: 0 auto auto 0;
+  border-radius: 999px;
+  background: #374151;
+}
+
+.scroll-area-thumb:hover {
+  background: #4b5563;
+}
+
 .app-shell {
   position: relative;
   min-height: 100vh;

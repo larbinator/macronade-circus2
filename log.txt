@@ -1,0 +1,35 @@
+jaja@debian:~/Documents/en_cours/bab_tauri/macronade-circus2$ npm run tauri build
+
+> rem-circus-ui@0.0.0 tauri
+> tauri build
+
+        Info Looking up installed tauri packages to check mismatched versions...
+     Running beforeBuildCommand `npm run build`
+
+> rem-circus-ui@0.0.0 build
+> tsc -b && vite build
+
+vite.config.ts:184:5 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Type '{ name: string; buildStart(): Promise<[void, void]>; configResolved(): Promise<[void, void]>; configureServer(server: { watcher: any; ws: any; }): void; }' is not assignable to type 'PluginOption'.
+      Type '{ name: string; buildStart(): Promise<[void, void]>; configResolved(): Promise<[void, void]>; configureServer(server: { watcher: any; ws: any; }): void; }' is not assignable to type 'Plugin<any>'.
+        Types of property 'configResolved' are incompatible.
+          Type '() => Promise<[void, void]>' is not assignable to type 'ObjectHook<(this: MinimalPluginContextWithoutEnvironment, config: ResolvedConfig) => void | Promise<void>>'.
+            Type '() => Promise<[void, void]>' is not assignable to type '(this: MinimalPluginContextWithoutEnvironment, config: ResolvedConfig) => void | Promise<void>'.
+              Type 'Promise<[void, void]>' is not assignable to type 'void | Promise<void>'.
+                Type 'Promise<[void, void]>' is not assignable to type 'Promise<void>'.
+                  Type '[void, void]' is not assignable to type 'void'.
+
+184     assetsManifestPlugin(),
+        ~~~~~~~~~~~~~~~~~~~~~~
+
+  node_modules/vite/dist/node/index.d.ts:3102:18
+    3102 declare function defineConfig(config: UserConfigExport): UserConfigExport;
+                          ~~~~~~~~~~~~
+    The last overload is declared here.
+
+
+Found 1 error.
+
+beforeBuildCommand `npm run build` failed with exit code 2
+       Error beforeBuildCommand `npm run build` failed with exit code 2

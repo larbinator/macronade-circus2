@@ -60,7 +60,7 @@ const parsePantinSvg = (contents: string) => {
     }
   }
   return {
-    rotatableMembers: [...rotatable],
+    rotatableMembers: Array.from(rotatable),
     variants,
   }
 }
@@ -152,11 +152,11 @@ const assetsManifestPlugin = () => {
   }
   return {
     name: "assets-manifest",
-    buildStart() {
-      return Promise.all([generateAssetsManifest(), generatePantinsManifest()])
+    async buildStart() {
+      await Promise.all([generateAssetsManifest(), generatePantinsManifest()])
     },
-    configResolved() {
-      return Promise.all([generateAssetsManifest(), generatePantinsManifest()])
+    async configResolved() {
+      await Promise.all([generateAssetsManifest(), generatePantinsManifest()])
     },
     configureServer(server: { watcher: any; ws: any }) {
       const publicDir = path.resolve(__dirname, "public")
@@ -177,7 +177,7 @@ const assetsManifestPlugin = () => {
 const host = process.env.TAURI_DEV_HOST
 
 // https://vite.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
@@ -210,4 +210,4 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
-}));
+})

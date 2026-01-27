@@ -91,7 +91,7 @@ export default function App() {
   })
   const [sceneZoom, setSceneZoom] = React.useState(1)
   const [toolsToggles, setToolsToggles] = React.useState({
-    handles: true,
+    handles: false,
     onion: false,
   })
 

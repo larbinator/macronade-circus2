@@ -28,6 +28,9 @@ export function LibraryPanel() {
   const [categories, setCategories] = React.useState<AssetCategory[]>([])
   const [status, setStatus] = React.useState<"idle" | "loading" | "error">("idle")
   const [activeTab, setActiveTab] = React.useState<string | undefined>(undefined)
+  const [selectedLibraryAsset, setSelectedLibraryAsset] = React.useState<string | null>(
+    null,
+  )
 
   const loadManifest = React.useCallback(async () => {
     setStatus("loading")
@@ -60,11 +63,14 @@ export function LibraryPanel() {
     }
   }, [activeTab, categories])
 
-  const selectedSceneItem =
-    state.selection?.type === "scene"
-      ? state.scene.items.find((item) => item.id === state.selection.itemId)
-      : null
-  const selectedAssetPath = selectedSceneItem?.assetPath ?? null
+  const selectedSceneItem = React.useMemo(() => {
+    if (state.selection && state.selection.type === "scene") {
+      const { itemId } = state.selection
+      return state.scene.items.find((item) => item.id === itemId) ?? null
+    }
+    return null
+  }, [state.selection, state.scene.items])
+  const selectedAssetPath = selectedSceneItem?.assetPath ?? selectedLibraryAsset
 
   if (status === "error") {
     return (
@@ -178,7 +184,7 @@ export function LibraryPanel() {
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="flex items-center justify-between">
+      <div className="sticky top-0 z-10 flex items-center justify-between bg-[#1F2937] pb-2">
         <TabsList className="h-9 justify-start gap-2 rounded-lg bg-transparent p-0">
           {categories.map((category) => {
             const Icon = iconMap[category.id] ?? User
@@ -220,7 +226,8 @@ export function LibraryPanel() {
                   }
                   aria-label={item.label}
                   title={item.label}
-                  onClick={() => handleImport(category.id, item)}
+                  onClick={() => setSelectedLibraryAsset(item.path)}
+                  onDoubleClick={() => handleImport(category.id, item)}
                 >
                   <div className="flex h-[96px] w-[96px] items-center justify-center rounded-md border border-[#2B3444] bg-[#111827]">
                     <img

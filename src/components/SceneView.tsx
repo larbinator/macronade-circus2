@@ -123,7 +123,8 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
       variants?: Record<string, string>,
       memberRotations?: Record<string, number>,
     ) => {
-      if (!variants || Object.keys(variants).length === 0) {
+      const variantMap = variants ?? {}
+      if (Object.keys(variantMap).length === 0) {
         if (!memberRotations || Object.keys(memberRotations).length === 0) {
           return asset.inner
         }
@@ -140,7 +141,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
         if (!groupName || !variantName) {
           return
         }
-        const selected = variants[groupName]
+        const selected = variantMap[groupName]
         if (!selected) {
           return
         }

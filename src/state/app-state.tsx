@@ -243,7 +243,7 @@ function reducer(state: AppState, action: Action): AppState {
       const fallback = items[items.length - 1]?.id ?? null
       const activeLayerId =
         state.layers.activeLayerId === action.layerId ? fallback : state.layers.activeLayerId
-      const nextSelection =
+      const nextSelection: Selection =
         activeLayerId === null
           ? null
           : nextSceneItems.some((item) => item.id === activeLayerId)

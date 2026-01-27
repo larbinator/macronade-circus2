@@ -71,10 +71,13 @@ export function PropertiesPanel() {
   const activeLayer = state.layers.items.find(
     (layer) => layer.id === state.layers.activeLayerId,
   )
-  const selectedSceneItem =
-    state.selection?.type === "scene"
-      ? state.scene.items.find((item) => item.id === state.selection.itemId)
-      : null
+  const selectedSceneItem = React.useMemo(() => {
+    if (state.selection && state.selection.type === "scene") {
+      const { itemId } = state.selection
+      return state.scene.items.find((item) => item.id === itemId) ?? null
+    }
+    return null
+  }, [state.selection, state.scene.items])
   const selectionLabel = selectedSceneItem?.label ?? activeLayer?.name ?? "Aucune selection"
   const selectionType = selectedSceneItem
     ? selectedSceneItem.kind === "pantin"
@@ -183,11 +186,6 @@ export function PropertiesPanel() {
             Transform
           </div>
           <div className="mt-3 flex flex-col gap-2">
-          <FieldRow label="Nom">
-            <div className="rounded-md border border-border bg-[#111827] px-2 py-1 text-sm text-foreground">
-              {selectionLabel}
-            </div>
-          </FieldRow>
             <FieldRow label="Position">
               <div className="grid grid-cols-2 gap-2">
                 <SmallInput

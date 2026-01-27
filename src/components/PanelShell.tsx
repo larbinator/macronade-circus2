@@ -1,5 +1,6 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 type PanelShellProps = {
   title: string
@@ -48,7 +49,7 @@ export function PanelShell({
           {title}
         </span>
       </div>
-      <div className="mt-3 flex-1 min-h-0 overflow-auto">{children}</div>
+      <ScrollArea className="mt-3 flex-1 min-h-0">{children}</ScrollArea>
       {[
         { corner: "top-left", className: "panel-corner--tl" },
         { corner: "top-right", className: "panel-corner--tr" },
