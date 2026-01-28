@@ -12,6 +12,10 @@ type DragState = {
   itemId: number
   offsetX: number
   offsetY: number
+  attached?: {
+    pantinId: number
+    memberId: string
+  }
 }
 
 type SvgAsset = {
@@ -48,7 +52,7 @@ const getSvgPoint = (svg: SVGSVGElement, clientX: number, clientY: number) => {
 
 export function SceneView({ className, zoom = 1, showHandles = true }: SceneViewProps) {
   const { state, dispatch } = useAppState()
-  const { scene, layers, selection } = state
+  const { scene, layers, selection, attachmentRequest } = state
   const containerRef = React.useRef<HTMLDivElement>(null)
   const svgRef = React.useRef<SVGSVGElement>(null)
   const dragRef = React.useRef<DragState | null>(null)
@@ -58,6 +62,80 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
   const svgAssetsRef = React.useRef<Record<string, SvgAsset>>({})
   const pantinRefs = React.useRef<Map<number, SVGSVGElement>>(new Map())
   const [handles, setHandles] = React.useState<HandleInfo[]>([])
+
+  const getMemberContext = React.useCallback(
+    (pantinId: number, memberId: string) => {
+      const pantinRoot = pantinRefs.current.get(pantinId)
+      const sceneRoot = svgRef.current
+      if (!pantinRoot || !sceneRoot) {
+        return null
+      }
+      const target = pantinRoot.querySelector<SVGGElement>(`#${CSS.escape(memberId)}`)
+      if (!target) {
+        return null
+      }
+      const memberCTM = target.getScreenCTM()
+      const sceneCTM = sceneRoot.getScreenCTM()
+      if (!memberCTM || !sceneCTM) {
+        return null
+      }
+      const sceneInverse = sceneCTM.inverse()
+      const memberSceneMatrix = memberCTM.multiply(sceneInverse)
+      const rotationRad = Math.atan2(memberSceneMatrix.b, memberSceneMatrix.a)
+      const scale = Math.hypot(memberSceneMatrix.a, memberSceneMatrix.b) || 1
+      return {
+        memberCTM,
+        sceneCTM,
+        sceneInverse,
+        rotationDeg: (rotationRad * 180) / Math.PI,
+        scale,
+      }
+    },
+    [],
+  )
+
+  const getEffectiveTransform = React.useCallback(
+    (item: typeof scene.items[number]) => {
+      if (item.kind === "objet" && item.attachment) {
+        const context = getMemberContext(
+          item.attachment.pantinId,
+          item.attachment.memberId,
+        )
+        if (context) {
+          const pointLocal = new DOMPoint(
+            item.attachment.offsetX,
+            item.attachment.offsetY,
+          )
+          const pointScene = pointLocal
+            .matrixTransform(context.memberCTM)
+            .matrixTransform(context.sceneInverse)
+          const scale = context.scale * item.scale
+          const rotation = context.rotationDeg + item.rotation
+          const width = item.width * scale
+          const height = item.height * scale
+          return {
+            x: pointScene.x - width / 2,
+            y: pointScene.y - height / 2,
+            scale,
+            rotation,
+            width,
+            height,
+          }
+        }
+      }
+      const width = item.width * item.scale
+      const height = item.height * item.scale
+      return {
+        x: item.x,
+        y: item.y,
+        scale: item.scale,
+        rotation: item.rotation,
+        width,
+        height,
+      }
+    },
+    [getMemberContext, scene.items],
+  )
 
   React.useEffect(() => {
     if (!scene.backgroundPath) {
@@ -215,10 +293,15 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
       return
     }
     const point = getSvgPoint(svg, event.clientX, event.clientY)
+    const effective = getEffectiveTransform(item)
     dragRef.current = {
       itemId,
-      offsetX: point.x - item.x,
-      offsetY: point.y - item.y,
+      offsetX: point.x - effective.x,
+      offsetY: point.y - effective.y,
+      attached:
+        item.kind === "objet" && item.attachment
+          ? { pantinId: item.attachment.pantinId, memberId: item.attachment.memberId }
+          : undefined,
     }
     svg.setPointerCapture(event.pointerId)
   }
@@ -252,12 +335,46 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
       return
     }
     const point = getSvgPoint(svgRef.current, event.clientX, event.clientY)
+    const dragState = dragRef.current
+    const item = scene.items.find((entry) => entry.id === dragState.itemId)
+    if (!item) {
+      return
+    }
+    if (dragState.attached && item.kind === "objet" && item.attachment) {
+      const context = getMemberContext(
+        item.attachment.pantinId,
+        item.attachment.memberId,
+      )
+      if (!context) {
+        return
+      }
+      const effective = getEffectiveTransform(item)
+      const width = effective.width
+      const height = effective.height
+      const nextX = point.x - dragState.offsetX
+      const nextY = point.y - dragState.offsetY
+      const centerScene = new DOMPoint(nextX + width / 2, nextY + height / 2)
+      const centerScreen = centerScene.matrixTransform(context.sceneCTM)
+      const centerLocal = centerScreen.matrixTransform(context.memberCTM.inverse())
+      dispatch({
+        type: "scene/update-item",
+        itemId: item.id,
+        patch: {
+          attachment: {
+            ...item.attachment,
+            offsetX: centerLocal.x,
+            offsetY: centerLocal.y,
+          },
+        },
+      })
+      return
+    }
     dispatch({
       type: "scene/update-item",
-      itemId: dragRef.current.itemId,
+      itemId: dragState.itemId,
       patch: {
-        x: point.x - dragRef.current.offsetX,
-        y: point.y - dragRef.current.offsetY,
+        x: point.x - dragState.offsetX,
+        y: point.y - dragState.offsetY,
       },
     })
   }
@@ -277,6 +394,91 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
   const clearSelection = () => {
     dispatch({ type: "selection/clear" })
   }
+
+  React.useEffect(() => {
+    if (!attachmentRequest) {
+      return
+    }
+    const frame = requestAnimationFrame(() => {
+      if (attachmentRequest.type === "attach") {
+        const item = scene.items.find((entry) => entry.id === attachmentRequest.itemId)
+        const pantin = scene.items.find(
+          (entry) => entry.id === attachmentRequest.pantinId,
+        )
+        if (!item || item.kind !== "objet" || !pantin || pantin.kind !== "pantin") {
+          dispatch({ type: "scene/clear-attachment-request" })
+          return
+        }
+        const context = getMemberContext(
+          attachmentRequest.pantinId,
+          attachmentRequest.memberId,
+        )
+        if (!context) {
+          dispatch({ type: "scene/clear-attachment-request" })
+          return
+        }
+        const current = getEffectiveTransform(item)
+        const centerScene = new DOMPoint(
+          current.x + current.width / 2,
+          current.y + current.height / 2,
+        )
+        const centerScreen = centerScene.matrixTransform(context.sceneCTM)
+        const centerLocal = centerScreen.matrixTransform(context.memberCTM.inverse())
+        const nextScale = current.scale / context.scale
+        const nextRotation = current.rotation - context.rotationDeg
+        dispatch({
+          type: "scene/update-item",
+          itemId: item.id,
+          patch: {
+            attachment: {
+              pantinId: attachmentRequest.pantinId,
+              memberId: attachmentRequest.memberId,
+              offsetX: centerLocal.x,
+              offsetY: centerLocal.y,
+            },
+            scale: Number.isFinite(nextScale) ? nextScale : item.scale,
+            rotation: Number.isFinite(nextRotation) ? nextRotation : item.rotation,
+          },
+        })
+        dispatch({ type: "scene/clear-attachment-request" })
+        return
+      }
+
+      if (attachmentRequest.type === "detach") {
+        const item = scene.items.find((entry) => entry.id === attachmentRequest.itemId)
+        if (!item || item.kind !== "objet" || !item.attachment) {
+          dispatch({ type: "scene/clear-attachment-request" })
+          return
+        }
+        const context = getMemberContext(
+          item.attachment.pantinId,
+          item.attachment.memberId,
+        )
+        const current = context ? getEffectiveTransform(item) : null
+        if (current) {
+          dispatch({
+            type: "scene/update-item",
+            itemId: item.id,
+            patch: {
+              attachment: undefined,
+              x: current.x,
+              y: current.y,
+              scale: current.scale,
+              rotation: current.rotation,
+            },
+          })
+        } else {
+          dispatch({
+            type: "scene/update-item",
+            itemId: item.id,
+            patch: { attachment: undefined },
+          })
+        }
+        dispatch({ type: "scene/clear-attachment-request" })
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [attachmentRequest, dispatch, getEffectiveTransform, getMemberContext, scene.items])
 
   const selectedItem =
     selection?.type === "scene"
@@ -491,18 +693,19 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
         )}
 
         {visibleItems.map((item) => {
-          const width = item.width * item.scale
-          const height = item.height * item.scale
-          const cx = item.x + width / 2
-          const cy = item.y + height / 2
+          const effective = getEffectiveTransform(item)
+          const width = effective.width
+          const height = effective.height
+          const cx = effective.x + width / 2
+          const cy = effective.y + height / 2
           if (item.kind === "pantin") {
             const asset = svgAssets[item.assetPath]
             if (!asset) {
               return (
-                <g key={item.id} transform={`rotate(${item.rotation} ${cx} ${cy})`}>
+                <g key={item.id} transform={`rotate(${effective.rotation} ${cx} ${cy})`}>
                   <rect
-                    x={item.x}
-                    y={item.y}
+                    x={effective.x}
+                    y={effective.y}
                     width={width}
                     height={height}
                     fill="rgba(255,255,255,0.4)"
@@ -517,7 +720,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
             const inner = applyVariants(asset, item.variants, item.memberRotations)
             const viewBox = asset.viewBox ?? `0 0 ${item.width} ${item.height}`
             return (
-              <g key={item.id} transform={`rotate(${item.rotation} ${cx} ${cy})`}>
+              <g key={item.id} transform={`rotate(${effective.rotation} ${cx} ${cy})`}>
                 <svg
                   ref={(node) => {
                     if (node) {
@@ -526,8 +729,8 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
                       pantinRefs.current.delete(item.id)
                     }
                   }}
-                  x={item.x}
-                  y={item.y}
+                  x={effective.x}
+                  y={effective.y}
                   width={width}
                   height={height}
                   viewBox={viewBox}
@@ -544,11 +747,11 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
             )
           }
           return (
-            <g key={item.id} transform={`rotate(${item.rotation} ${cx} ${cy})`}>
+            <g key={item.id} transform={`rotate(${effective.rotation} ${cx} ${cy})`}>
               <image
                 href={item.assetPath}
-                x={item.x}
-                y={item.y}
+                x={effective.x}
+                y={effective.y}
                 width={width}
                 height={height}
                 preserveAspectRatio="xMidYMid meet"
@@ -561,10 +764,11 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
 
         {selectedItem ? (
           (() => {
-            const width = selectedItem.width * selectedItem.scale
-            const height = selectedItem.height * selectedItem.scale
-            const x = selectedItem.x
-            const y = selectedItem.y
+            const effective = getEffectiveTransform(selectedItem)
+            const width = effective.width
+            const height = effective.height
+            const x = effective.x
+            const y = effective.y
             const handleSize = 10
             return (
               <g>

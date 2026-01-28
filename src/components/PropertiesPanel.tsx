@@ -130,6 +130,8 @@ export function PropertiesPanel() {
   const rotatableMembers = selectedPantinDefinition?.rotatableMembers ?? []
   const itemVariants = selectedSceneItem?.variants ?? {}
   const memberRotations = selectedSceneItem?.memberRotations ?? {}
+  const selectedAttachment =
+    selectedSceneItem?.kind === "objet" ? selectedSceneItem.attachment ?? null : null
 
   const pantinItems = state.scene.items.filter((item) => item.kind === "pantin")
   const attachPantin =
@@ -151,12 +153,21 @@ export function PropertiesPanel() {
   }, [selectedSceneItem?.id, selectedSceneItem?.kind, pantinItems, attachPantinId])
 
   React.useEffect(() => {
-    if (attachMembers.length > 0) {
-      setAttachMember(attachMembers[0])
-    } else {
-      setAttachMember("")
+    if (selectedAttachment) {
+      setAttachPantinId(selectedAttachment.pantinId)
+      setAttachMember(selectedAttachment.memberId)
     }
-  }, [attachPantinDefinition?.id, attachMembers.join("|")])
+  }, [selectedAttachment?.pantinId, selectedAttachment?.memberId])
+
+  React.useEffect(() => {
+    if (attachMembers.length === 0) {
+      setAttachMember("")
+      return
+    }
+    if (!attachMember || !attachMembers.includes(attachMember)) {
+      setAttachMember(attachMembers[0])
+    }
+  }, [attachPantinDefinition?.id, attachMembers.join("|"), attachMember])
 
   if (selectionKind === "none") {
     return null
@@ -429,8 +440,44 @@ export function PropertiesPanel() {
               </SmallSelect>
             </FieldRow>
             <div className="flex items-center gap-2">
-              <Button size="sm">Attacher</Button>
-              <Button variant="ghost" size="sm">Detacher</Button>
+              <Button
+                size="sm"
+                disabled={
+                  !selectedSceneItem ||
+                  selectedSceneItem.kind !== "objet" ||
+                  !attachPantinId ||
+                  !attachMember
+                }
+                onClick={() => {
+                  if (!selectedSceneItem || selectedSceneItem.kind !== "objet") {
+                    return
+                  }
+                  if (!attachPantinId || !attachMember) {
+                    return
+                  }
+                  dispatch({
+                    type: "scene/request-attach",
+                    itemId: selectedSceneItem.id,
+                    pantinId: attachPantinId,
+                    memberId: attachMember,
+                  })
+                }}
+              >
+                Attacher
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!selectedAttachment || !selectedSceneItem}
+                onClick={() => {
+                  if (!selectedSceneItem) {
+                    return
+                  }
+                  dispatch({ type: "scene/request-detach", itemId: selectedSceneItem.id })
+                }}
+              >
+                Detacher
+              </Button>
             </div>
           </div>
         </div>

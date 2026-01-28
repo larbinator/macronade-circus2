@@ -31,6 +31,12 @@ export type SceneItem = {
   height: number
   variants?: Record<string, string>
   memberRotations?: Record<string, number>
+  attachment?: {
+    pantinId: number
+    memberId: string
+    offsetX: number
+    offsetY: number
+  }
 }
 
 export type SceneState = {
@@ -52,6 +58,10 @@ export type AppState = {
   }
   scene: SceneState
   selection: Selection
+  attachmentRequest:
+    | { type: "attach"; itemId: number; pantinId: number; memberId: string }
+    | { type: "detach"; itemId: number }
+    | null
 }
 
 type Action =
@@ -84,6 +94,9 @@ type Action =
   | { type: "scene/select-item"; itemId: number }
   | { type: "scene/update-item"; itemId: number; patch: Partial<SceneItem> }
   | { type: "scene/reset" }
+  | { type: "scene/request-attach"; itemId: number; pantinId: number; memberId: string }
+  | { type: "scene/request-detach"; itemId: number }
+  | { type: "scene/clear-attachment-request" }
   | { type: "selection/clear" }
 
 const defaultBackgroundPath = "/decors/defaut.png"
@@ -110,6 +123,7 @@ const initialState: AppState = {
     items: [],
   },
   selection: null,
+  attachmentRequest: null,
 }
 
 const clamp = (value: number, min: number, max: number) =>
@@ -391,6 +405,30 @@ function reducer(state: AppState, action: Action): AppState {
           activeLayerId: 0,
         },
         selection: null,
+        attachmentRequest: null,
+      }
+    case "scene/request-attach":
+      return {
+        ...state,
+        attachmentRequest: {
+          type: "attach",
+          itemId: action.itemId,
+          pantinId: action.pantinId,
+          memberId: action.memberId,
+        },
+      }
+    case "scene/request-detach":
+      return {
+        ...state,
+        attachmentRequest: {
+          type: "detach",
+          itemId: action.itemId,
+        },
+      }
+    case "scene/clear-attachment-request":
+      return {
+        ...state,
+        attachmentRequest: null,
       }
     case "scene/select-item":
       return {

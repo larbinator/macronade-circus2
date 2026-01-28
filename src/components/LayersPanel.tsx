@@ -59,11 +59,6 @@ export function LayersPanel() {
             <ChevronDown className="h-4 w-4" />
           </Button>
         </div>
-        <div className="grid grid-cols-[1fr_auto_auto] gap-2 text-xs text-muted-foreground">
-          <span>Calque</span>
-          <span>Vis</span>
-          <span>Lock</span>
-        </div>
       </div>
       <div className="flex flex-col gap-2">
         {items.map((layer) => (
