@@ -141,6 +141,10 @@ export function PropertiesPanel() {
     null
   const attachPantinDefinition = resolvePantinDefinition(attachPantin?.assetPath)
   const attachMembers = attachPantinDefinition?.rotatableMembers ?? []
+  const attachedPantinLabel = selectedAttachment
+    ? pantinItems.find((item) => item.id === selectedAttachment.pantinId)?.label ??
+      "Pantin"
+    : null
 
   React.useEffect(() => {
     if (selectedSceneItem?.kind === "pantin") {
@@ -197,6 +201,12 @@ export function PropertiesPanel() {
             Transform
           </div>
           <div className="mt-3 flex flex-col gap-2">
+            {selectedAttachment ? (
+              <div className="rounded-md border border-border bg-[#111827] px-2 py-1 text-xs text-muted-foreground">
+                Attache a {attachedPantinLabel} · {selectedAttachment.memberId}
+              </div>
+            ) : null}
+            {selectedSceneItem.kind === "objet" && selectedAttachment ? null : (
             <FieldRow label="Position">
               <div className="grid grid-cols-2 gap-2">
                 <SmallInput
@@ -237,6 +247,7 @@ export function PropertiesPanel() {
                 />
               </div>
             </FieldRow>
+            )}
           <FieldRow label="Echelle">
             <SmallInput
               value={selectedSceneItem ? selectedSceneItem.scale.toFixed(2) : ""}
