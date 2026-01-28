@@ -52,7 +52,7 @@ const getSvgPoint = (svg: SVGSVGElement, clientX: number, clientY: number) => {
 
 export function SceneView({ className, zoom = 1, showHandles = true }: SceneViewProps) {
   const { state, dispatch } = useAppState()
-  const { scene, layers, selection, attachmentRequest } = state
+  const { scene, layers, selection, attachmentRequest, timeline } = state
   const containerRef = React.useRef<HTMLDivElement>(null)
   const svgRef = React.useRef<SVGSVGElement>(null)
   const dragRef = React.useRef<DragState | null>(null)
@@ -498,7 +498,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
   const viewBoxY = (viewHeight - viewBoxHeight) / 2
 
   React.useLayoutEffect(() => {
-    if (!showHandles || !selectedPantin) {
+    if (!showHandles || timeline.isPlaying || !selectedPantin) {
       setHandles([])
       return
     }
@@ -615,6 +615,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
     selectedPantin?.y,
     svgAssets,
     showHandles,
+    timeline.isPlaying,
   ])
 
   const startMemberRotation = (

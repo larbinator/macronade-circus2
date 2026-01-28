@@ -191,20 +191,11 @@ body {
 }
 
 .timeline-ruler {
-  background-image:
-    linear-gradient(90deg, rgba(71, 85, 105, 0.7) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(71, 85, 105, 0.35) 1px, transparent 1px);
-  background-size: 24px 100%, 120px 100%;
+  background-image: none;
 }
 
 .timeline-track {
-  background-image: linear-gradient(90deg, rgba(71, 85, 105, 0.35) 1px, transparent 1px);
-  background-size: 24px 100%;
-}
-
-.timeline-scrub {
-  background-image: linear-gradient(90deg, rgba(229, 62, 62, 0.2) 1px, transparent 1px);
-  background-size: 24px 100%;
+  background-image: none;
 }
 
 .kf-dot {

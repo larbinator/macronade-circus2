@@ -14,6 +14,7 @@ export type TimelineState = {
   endFrame: number
   currentFrame: number
   keyframes: number[]
+  keyframeStates: Record<number, KeyframeSnapshot>
   loopEnabled: boolean
   isPlaying: boolean
 }
@@ -43,6 +44,22 @@ export type SceneState = {
   backgroundPath: string | null
   backgroundSize: { width: number; height: number } | null
   items: SceneItem[]
+}
+
+export type SceneSnapshot = {
+  backgroundPath: string | null
+  backgroundSize: { width: number; height: number } | null
+  items: SceneItem[]
+}
+
+export type LayersSnapshot = {
+  items: LayerItem[]
+  activeLayerId: number | null
+}
+
+export type KeyframeSnapshot = {
+  scene: SceneSnapshot
+  layers: LayersSnapshot
 }
 
 export type Selection =
@@ -107,7 +124,8 @@ const initialState: AppState = {
     startFrame: 0,
     endFrame: 239,
     currentFrame: 1,
-    keyframes: [8, 24, 36, 72, 98, 132, 164, 198],
+    keyframes: [],
+    keyframeStates: {},
     loopEnabled: true,
     isPlaying: false,
   },
@@ -132,6 +150,271 @@ const clamp = (value: number, min: number, max: number) =>
 const sortKeyframes = (keyframes: number[]) =>
   [...new Set(keyframes)].sort((a, b) => a - b)
 
+const cloneSceneItem = (item: SceneItem): SceneItem => ({
+  ...item,
+  variants: item.variants ? { ...item.variants } : undefined,
+  memberRotations: item.memberRotations ? { ...item.memberRotations } : undefined,
+  attachment: item.attachment ? { ...item.attachment } : undefined,
+})
+
+const cloneSnapshot = (snapshot: KeyframeSnapshot): KeyframeSnapshot => ({
+  scene: {
+    backgroundPath: snapshot.scene.backgroundPath,
+    backgroundSize: snapshot.scene.backgroundSize
+      ? { ...snapshot.scene.backgroundSize }
+      : null,
+    items: snapshot.scene.items.map(cloneSceneItem),
+  },
+  layers: {
+    items: snapshot.layers.items.map((layer) => ({ ...layer })),
+    activeLayerId: snapshot.layers.activeLayerId,
+  },
+})
+
+const lerp = (start: number, end: number, t: number) => start + (end - start) * t
+
+const lerpAngle = (start: number, end: number, t: number) => {
+  const a = Number.isFinite(start) ? start : 0
+  const b = Number.isFinite(end) ? end : 0
+  const delta = ((((b - a) % 360) + 540) % 360) - 180
+  return a + delta * t
+}
+
+const interpolateMemberRotations = (
+  prev?: Record<string, number>,
+  next?: Record<string, number>,
+  t: number = 0,
+) => {
+  const prevMap = prev ?? {}
+  const nextMap = next ?? {}
+  const keys = new Set([...Object.keys(prevMap), ...Object.keys(nextMap)])
+  if (keys.size === 0) {
+    return undefined
+  }
+  const output: Record<string, number> = {}
+  keys.forEach((key) => {
+    const rawA = prevMap[key]
+    const rawB = nextMap[key]
+    const a = Number.isFinite(rawA) ? Number(rawA) : 0
+    const b = Number.isFinite(rawB) ? Number(rawB) : 0
+    output[key] = lerpAngle(a, b, t)
+  })
+  return Object.keys(output).length > 0 ? output : undefined
+}
+
+const interpolateSnapshot = (
+  prev: KeyframeSnapshot,
+  next: KeyframeSnapshot,
+  t: number,
+): KeyframeSnapshot => {
+  const prevItems = prev.scene.items
+  const nextItemsById = new Map(next.scene.items.map((item) => [item.id, item]))
+  const items = prevItems.map((item) => {
+    const other = nextItemsById.get(item.id)
+    if (!other) {
+      return cloneSceneItem(item)
+    }
+    const attachmentMatch =
+      item.attachment &&
+      other.attachment &&
+      item.attachment.pantinId === other.attachment.pantinId &&
+      item.attachment.memberId === other.attachment.memberId
+    const attachment = attachmentMatch
+      ? {
+          pantinId: item.attachment!.pantinId,
+          memberId: item.attachment!.memberId,
+          offsetX: lerp(item.attachment!.offsetX, other.attachment!.offsetX, t),
+          offsetY: lerp(item.attachment!.offsetY, other.attachment!.offsetY, t),
+        }
+      : item.attachment
+        ? { ...item.attachment }
+        : undefined
+    return {
+      ...cloneSceneItem(item),
+      x: lerp(item.x, other.x, t),
+      y: lerp(item.y, other.y, t),
+      scale: lerp(item.scale, other.scale, t),
+      rotation: lerpAngle(item.rotation, other.rotation, t),
+      memberRotations: interpolateMemberRotations(item.memberRotations, other.memberRotations, t),
+      attachment,
+    }
+  })
+  return {
+    scene: {
+      backgroundPath: prev.scene.backgroundPath,
+      backgroundSize: prev.scene.backgroundSize ? { ...prev.scene.backgroundSize } : null,
+      items,
+    },
+    layers: {
+      items: prev.layers.items.map((layer) => ({ ...layer })),
+      activeLayerId: prev.layers.activeLayerId,
+    },
+  }
+}
+
+const buildSnapshot = (state: AppState): KeyframeSnapshot => ({
+  scene: {
+    backgroundPath: state.scene.backgroundPath,
+    backgroundSize: state.scene.backgroundSize ? { ...state.scene.backgroundSize } : null,
+    items: state.scene.items.map(cloneSceneItem),
+  },
+  layers: {
+    items: state.layers.items.map((layer) => ({ ...layer })),
+    activeLayerId: state.layers.activeLayerId,
+  },
+})
+
+const updateKeyframeStateIfNeeded = (state: AppState): AppState => {
+  const frame = state.timeline.currentFrame
+  if (!state.timeline.keyframes.includes(frame)) {
+    return state
+  }
+  return {
+    ...state,
+    timeline: {
+      ...state.timeline,
+      keyframeStates: {
+        ...state.timeline.keyframeStates,
+        [frame]: buildSnapshot(state),
+      },
+    },
+  }
+}
+
+const resolveSelection = (
+  selection: Selection,
+  sceneItems: SceneItem[],
+  layerItems: LayerItem[],
+): Selection => {
+  if (!selection) {
+    return null
+  }
+  if (selection.type === "scene") {
+    return sceneItems.some((item) => item.id === selection.itemId) ? selection : null
+  }
+  if (selection.type === "layer") {
+    return layerItems.some((layer) => layer.id === selection.layerId) ? selection : null
+  }
+  return null
+}
+
+const applyFrameSnapshot = (state: AppState, frame: number): AppState => {
+  const nextTimeline = { ...state.timeline, currentFrame: frame }
+  const keyframes = sortKeyframes(state.timeline.keyframes)
+  const keyframeStates = state.timeline.keyframeStates
+  const prevFrame = [...keyframes].reverse().find((entry) => entry <= frame && keyframeStates[entry])
+  const nextFrame = keyframes.find((entry) => entry >= frame && keyframeStates[entry])
+
+  if (prevFrame === undefined && nextFrame === undefined) {
+    return { ...state, timeline: nextTimeline }
+  }
+
+  if (prevFrame === undefined && nextFrame !== undefined) {
+    const snapshot = keyframeStates[nextFrame]
+    if (!snapshot) {
+      return { ...state, timeline: nextTimeline }
+    }
+    const cloned = cloneSnapshot(snapshot)
+    return {
+      ...state,
+      timeline: nextTimeline,
+      scene: {
+        backgroundPath: cloned.scene.backgroundPath,
+        backgroundSize: cloned.scene.backgroundSize,
+        items: cloned.scene.items,
+      },
+      layers: {
+        items: cloned.layers.items,
+        activeLayerId: cloned.layers.activeLayerId,
+      },
+      selection: resolveSelection(
+        state.selection,
+        cloned.scene.items,
+        cloned.layers.items,
+      ),
+    }
+  }
+
+  if (nextFrame === undefined && prevFrame !== undefined) {
+    const snapshot = keyframeStates[prevFrame]
+    if (!snapshot) {
+      return { ...state, timeline: nextTimeline }
+    }
+    const cloned = cloneSnapshot(snapshot)
+    return {
+      ...state,
+      timeline: nextTimeline,
+      scene: {
+        backgroundPath: cloned.scene.backgroundPath,
+        backgroundSize: cloned.scene.backgroundSize,
+        items: cloned.scene.items,
+      },
+      layers: {
+        items: cloned.layers.items,
+        activeLayerId: cloned.layers.activeLayerId,
+      },
+      selection: resolveSelection(
+        state.selection,
+        cloned.scene.items,
+        cloned.layers.items,
+      ),
+    }
+  }
+
+  if (prevFrame === nextFrame && prevFrame !== undefined) {
+    const snapshot = keyframeStates[prevFrame]
+    if (!snapshot) {
+      return { ...state, timeline: nextTimeline }
+    }
+    const cloned = cloneSnapshot(snapshot)
+    return {
+      ...state,
+      timeline: nextTimeline,
+      scene: {
+        backgroundPath: cloned.scene.backgroundPath,
+        backgroundSize: cloned.scene.backgroundSize,
+        items: cloned.scene.items,
+      },
+      layers: {
+        items: cloned.layers.items,
+        activeLayerId: cloned.layers.activeLayerId,
+      },
+      selection: resolveSelection(
+        state.selection,
+        cloned.scene.items,
+        cloned.layers.items,
+      ),
+    }
+  }
+
+  const prevSnapshot = prevFrame !== undefined ? keyframeStates[prevFrame] : undefined
+  const nextSnapshot = nextFrame !== undefined ? keyframeStates[nextFrame] : undefined
+  if (!prevSnapshot || !nextSnapshot || prevFrame === undefined || nextFrame === undefined) {
+    return { ...state, timeline: nextTimeline }
+  }
+  const t =
+    nextFrame === prevFrame ? 0 : (frame - prevFrame) / (nextFrame - prevFrame)
+  const interpolated = interpolateSnapshot(prevSnapshot, nextSnapshot, t)
+  const cloned = cloneSnapshot(interpolated)
+  return {
+    ...state,
+    timeline: nextTimeline,
+    scene: {
+      backgroundPath: cloned.scene.backgroundPath,
+      backgroundSize: cloned.scene.backgroundSize,
+      items: cloned.scene.items,
+    },
+    layers: {
+      items: cloned.layers.items,
+      activeLayerId: cloned.layers.activeLayerId,
+    },
+    selection: resolveSelection(
+      state.selection,
+      cloned.scene.items,
+      cloned.layers.items,
+    ),
+  }
+}
 const nextLayerName = (items: LayerItem[]) => {
   const base = "Layer"
   const names = new Set(items.map((item) => item.name))
@@ -173,13 +456,8 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case "timeline/set-current": {
       const { startFrame, endFrame } = state.timeline
-      return {
-        ...state,
-        timeline: {
-          ...state.timeline,
-          currentFrame: clamp(action.frame, startFrame, endFrame),
-        },
-      }
+      const frame = clamp(action.frame, startFrame, endFrame)
+      return applyFrameSnapshot(state, frame)
     }
     case "timeline/toggle-loop":
       return {
@@ -195,11 +473,23 @@ function reducer(state: AppState, action: Action): AppState {
       const { startFrame, endFrame } = state.timeline
       const frame = clamp(action.frame, startFrame, endFrame)
       const keyframes = sortKeyframes([...state.timeline.keyframes, frame])
-      return { ...state, timeline: { ...state.timeline, keyframes } }
+      const snapshot = buildSnapshot(state)
+      return {
+        ...state,
+        timeline: {
+          ...state.timeline,
+          keyframes,
+          keyframeStates: { ...state.timeline.keyframeStates, [frame]: snapshot },
+        },
+      }
     }
     case "timeline/remove-keyframe": {
       const keyframes = state.timeline.keyframes.filter((frame) => frame !== action.frame)
-      return { ...state, timeline: { ...state.timeline, keyframes } }
+      const { [action.frame]: _removed, ...rest } = state.timeline.keyframeStates
+      return {
+        ...state,
+        timeline: { ...state.timeline, keyframes, keyframeStates: rest },
+      }
     }
     case "timeline/jump-prev": {
       const frames = sortKeyframes(state.timeline.keyframes)
@@ -208,10 +498,7 @@ function reducer(state: AppState, action: Action): AppState {
       if (prev === undefined) {
         return state
       }
-      return {
-        ...state,
-        timeline: { ...state.timeline, currentFrame: prev },
-      }
+      return applyFrameSnapshot(state, prev)
     }
     case "timeline/jump-next": {
       const frames = sortKeyframes(state.timeline.keyframes)
@@ -220,10 +507,7 @@ function reducer(state: AppState, action: Action): AppState {
       if (next === undefined) {
         return state
       }
-      return {
-        ...state,
-        timeline: { ...state.timeline, currentFrame: next },
-      }
+      return applyFrameSnapshot(state, next)
     }
     case "layers/add": {
       const nextId = nextSceneId(state)
@@ -234,7 +518,7 @@ function reducer(state: AppState, action: Action): AppState {
         locked: false,
         kind: "item",
       }
-      return {
+      const nextState = {
         ...state,
         layers: {
           ...state.layers,
@@ -243,6 +527,7 @@ function reducer(state: AppState, action: Action): AppState {
         },
         selection: { type: "layer", layerId: nextId },
       }
+      return updateKeyframeStateIfNeeded(nextState)
     }
     case "layers/remove": {
       if (action.layerId === 0) {
@@ -263,12 +548,13 @@ function reducer(state: AppState, action: Action): AppState {
           : nextSceneItems.some((item) => item.id === activeLayerId)
             ? { type: "scene", itemId: activeLayerId }
             : { type: "layer", layerId: activeLayerId }
-      return {
+      const nextState = {
         ...state,
         layers: { ...state.layers, items, activeLayerId },
         scene: { ...state.scene, items: nextSceneItems },
         selection: nextSelection,
       }
+      return updateKeyframeStateIfNeeded(nextState)
     }
     case "layers/move": {
       const index = state.layers.items.findIndex((layer) => layer.id === action.layerId)
@@ -282,10 +568,10 @@ function reducer(state: AppState, action: Action): AppState {
       const items = [...state.layers.items]
       const [moved] = items.splice(index, 1)
       items.splice(nextIndex, 0, moved)
-      return { ...state, layers: { ...state.layers, items } }
+      return updateKeyframeStateIfNeeded({ ...state, layers: { ...state.layers, items } })
     }
     case "layers/toggle-visible":
-      return {
+      return updateKeyframeStateIfNeeded({
         ...state,
         layers: {
           ...state.layers,
@@ -293,9 +579,9 @@ function reducer(state: AppState, action: Action): AppState {
             layer.id === action.layerId ? { ...layer, visible: !layer.visible } : layer,
           ),
         },
-      }
+      })
     case "layers/toggle-locked":
-      return {
+      return updateKeyframeStateIfNeeded({
         ...state,
         layers: {
           ...state.layers,
@@ -303,7 +589,7 @@ function reducer(state: AppState, action: Action): AppState {
             layer.id === action.layerId ? { ...layer, locked: !layer.locked } : layer,
           ),
         },
-      }
+      })
     case "layers/set-active":
       return {
         ...state,
@@ -314,7 +600,7 @@ function reducer(state: AppState, action: Action): AppState {
       }
     case "scene/import-asset": {
       if (action.categoryId === "decors") {
-        return {
+        return updateKeyframeStateIfNeeded({
           ...state,
           scene: {
             ...state.scene,
@@ -327,7 +613,7 @@ function reducer(state: AppState, action: Action): AppState {
               layer.id === 0 ? { ...layer, name: action.label } : layer,
             ),
           },
-        }
+        })
       }
       const kind = action.categoryId === "pantins" ? "pantin" : "objet"
       const nextId = nextSceneId(state)
@@ -356,7 +642,7 @@ function reducer(state: AppState, action: Action): AppState {
         locked: false,
         kind: "item",
       }
-      return {
+      const nextState = {
         ...state,
         scene: { ...state.scene, items: [...state.scene.items, newItem] },
         layers: {
@@ -366,9 +652,10 @@ function reducer(state: AppState, action: Action): AppState {
         },
         selection: { type: "scene", itemId: nextId },
       }
+      return updateKeyframeStateIfNeeded(nextState)
     }
     case "scene/set-background":
-      return {
+      return updateKeyframeStateIfNeeded({
         ...state,
         scene: {
           ...state.scene,
@@ -381,17 +668,17 @@ function reducer(state: AppState, action: Action): AppState {
             layer.id === 0 && action.label ? { ...layer, name: action.label } : layer,
           ),
         },
-      }
+      })
     case "scene/set-background-size":
-      return {
+      return updateKeyframeStateIfNeeded({
         ...state,
         scene: {
           ...state.scene,
           backgroundSize: { width: action.width, height: action.height },
         },
-      }
+      })
     case "scene/reset":
-      return {
+      return updateKeyframeStateIfNeeded({
         ...state,
         scene: {
           backgroundPath: defaultBackgroundPath,
@@ -406,7 +693,7 @@ function reducer(state: AppState, action: Action): AppState {
         },
         selection: null,
         attachmentRequest: null,
-      }
+      })
     case "scene/request-attach":
       return {
         ...state,
@@ -437,7 +724,7 @@ function reducer(state: AppState, action: Action): AppState {
         selection: { type: "scene", itemId: action.itemId },
       }
     case "scene/update-item":
-      return {
+      return updateKeyframeStateIfNeeded({
         ...state,
         scene: {
           ...state.scene,
@@ -445,7 +732,7 @@ function reducer(state: AppState, action: Action): AppState {
             item.id === action.itemId ? { ...item, ...action.patch } : item,
           ),
         },
-      }
+      })
     case "selection/clear":
       return { ...state, selection: null }
     default:
