@@ -46,6 +46,17 @@ export type SceneState = {
   items: SceneItem[]
 }
 
+export type ProjectFile = {
+  version: 1
+  timeline: TimelineState
+  scene: SceneState
+  layers: {
+    items: LayerItem[]
+    activeLayerId: number | null
+  }
+  selection: Selection
+}
+
 export type SceneSnapshot = {
   backgroundPath: string | null
   backgroundSize: { width: number; height: number } | null
@@ -114,6 +125,7 @@ type Action =
   | { type: "scene/request-attach"; itemId: number; pantinId: number; memberId: string }
   | { type: "scene/request-detach"; itemId: number }
   | { type: "scene/clear-attachment-request" }
+  | { type: "project/load"; project: ProjectFile }
   | { type: "selection/clear" }
 
 const defaultBackgroundPath = "/decors/defaut.png"
@@ -263,6 +275,88 @@ const buildSnapshot = (state: AppState): KeyframeSnapshot => ({
     activeLayerId: state.layers.activeLayerId,
   },
 })
+
+const cloneProjectFile = (project: ProjectFile): ProjectFile => {
+  const keyframeStates: Record<number, KeyframeSnapshot> = {}
+  Object.entries(project.timeline.keyframeStates ?? {}).forEach(([key, snapshot]) => {
+    const frame = Number(key)
+    if (!Number.isFinite(frame) || !snapshot) {
+      return
+    }
+    keyframeStates[frame] = cloneSnapshot(snapshot)
+  })
+  return {
+    version: 1,
+    timeline: {
+      ...project.timeline,
+      keyframes: [...project.timeline.keyframes],
+      keyframeStates,
+    },
+    scene: {
+      backgroundPath: project.scene.backgroundPath,
+      backgroundSize: project.scene.backgroundSize ? { ...project.scene.backgroundSize } : null,
+      items: project.scene.items.map(cloneSceneItem),
+    },
+    layers: {
+      items: project.layers.items.map((layer) => ({ ...layer })),
+      activeLayerId: project.layers.activeLayerId,
+    },
+    selection: project.selection ? { ...project.selection } : null,
+  }
+}
+
+const normalizeProjectFile = (project: ProjectFile): ProjectFile => {
+  const source = cloneProjectFile(project)
+  const fallback = initialState
+  const fps = Math.max(1, source.timeline.fps ?? fallback.timeline.fps)
+  const startFrame = Math.max(0, source.timeline.startFrame ?? fallback.timeline.startFrame)
+  const endFrame = Math.max(
+    startFrame,
+    source.timeline.endFrame ?? fallback.timeline.endFrame,
+  )
+  const keyframes = sortKeyframes(source.timeline.keyframes ?? [])
+  const keyframeStates: Record<number, KeyframeSnapshot> = {}
+  keyframes.forEach((frame) => {
+    const snapshot = source.timeline.keyframeStates?.[frame]
+    if (snapshot) {
+      keyframeStates[frame] = cloneSnapshot(snapshot)
+    }
+  })
+  const currentFrame = clamp(
+    source.timeline.currentFrame ?? fallback.timeline.currentFrame,
+    startFrame,
+    endFrame,
+  )
+  const loopEnabled = source.timeline.loopEnabled ?? fallback.timeline.loopEnabled
+  return {
+    version: 1,
+    timeline: {
+      ...source.timeline,
+      fps,
+      startFrame,
+      endFrame,
+      currentFrame,
+      keyframes,
+      keyframeStates,
+      loopEnabled,
+      isPlaying: false,
+    },
+    scene: {
+      backgroundPath: source.scene.backgroundPath ?? fallback.scene.backgroundPath,
+      backgroundSize: source.scene.backgroundSize ? { ...source.scene.backgroundSize } : null,
+      items: source.scene.items.map(cloneSceneItem),
+    },
+    layers: {
+      items:
+        source.layers.items.length > 0
+          ? source.layers.items.map((layer) => ({ ...layer }))
+          : fallback.layers.items.map((layer) => ({ ...layer })),
+      activeLayerId:
+        source.layers.activeLayerId ?? fallback.layers.activeLayerId,
+    },
+    selection: source.selection ? { ...source.selection } : null,
+  }
+}
 
 const updateKeyframeStateIfNeeded = (state: AppState): AppState => {
   const frame = state.timeline.currentFrame
@@ -518,7 +612,7 @@ function reducer(state: AppState, action: Action): AppState {
         locked: false,
         kind: "item",
       }
-      const nextState = {
+      const nextState: AppState = {
         ...state,
         layers: {
           ...state.layers,
@@ -642,7 +736,7 @@ function reducer(state: AppState, action: Action): AppState {
         locked: false,
         kind: "item",
       }
-      const nextState = {
+      const nextState: AppState = {
         ...state,
         scene: { ...state.scene, items: [...state.scene.items, newItem] },
         layers: {
@@ -733,6 +827,21 @@ function reducer(state: AppState, action: Action): AppState {
           ),
         },
       })
+    case "project/load": {
+      const normalized = normalizeProjectFile(action.project)
+      const selection = resolveSelection(
+        normalized.selection,
+        normalized.scene.items,
+        normalized.layers.items,
+      )
+      return {
+        timeline: normalized.timeline,
+        scene: normalized.scene,
+        layers: normalized.layers,
+        selection,
+        attachmentRequest: null,
+      }
+    }
     case "selection/clear":
       return { ...state, selection: null }
     default:
@@ -759,4 +868,33 @@ export function useAppState() {
     throw new Error("useAppState must be used within AppStateProvider")
   }
   return context
+}
+
+export const createProjectFile = (state: AppState): ProjectFile => {
+  const keyframeStates: Record<number, KeyframeSnapshot> = {}
+  Object.entries(state.timeline.keyframeStates ?? {}).forEach(([key, snapshot]) => {
+    const frame = Number(key)
+    if (!Number.isFinite(frame) || !snapshot) {
+      return
+    }
+    keyframeStates[frame] = cloneSnapshot(snapshot)
+  })
+  return {
+    version: 1,
+    timeline: {
+      ...state.timeline,
+      keyframes: [...state.timeline.keyframes],
+      keyframeStates,
+    },
+    scene: {
+      backgroundPath: state.scene.backgroundPath,
+      backgroundSize: state.scene.backgroundSize ? { ...state.scene.backgroundSize } : null,
+      items: state.scene.items.map(cloneSceneItem),
+    },
+    layers: {
+      items: state.layers.items.map((layer) => ({ ...layer })),
+      activeLayerId: state.layers.activeLayerId,
+    },
+    selection: state.selection ? { ...state.selection } : null,
+  }
 }

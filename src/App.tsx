@@ -6,7 +6,9 @@ import { LayersPanel } from "@/components/LayersPanel"
 import { PropertiesPanel } from "@/components/PropertiesPanel"
 import { SceneView } from "@/components/SceneView"
 import { Timeline } from "@/components/Timeline"
-import { useAppState } from "@/state/app-state"
+import { createProjectFile, type ProjectFile, useAppState } from "@/state/app-state"
+import { invoke, isTauri } from "@tauri-apps/api/core"
+import { open, save } from "@tauri-apps/plugin-dialog"
 import {
   BookOpen,
   Film,
@@ -80,8 +82,29 @@ const mainItems = [
   },
 ]
 
+const parseProjectFile = (contents: string): ProjectFile | null => {
+  try {
+    const parsed = JSON.parse(contents) as Partial<ProjectFile>
+    if (!parsed || typeof parsed !== "object") {
+      return null
+    }
+    if (!parsed.timeline || !parsed.scene || !parsed.layers) {
+      return null
+    }
+    if (!Array.isArray(parsed.timeline.keyframes)) {
+      return null
+    }
+    if (!Array.isArray(parsed.scene.items) || !Array.isArray(parsed.layers.items)) {
+      return null
+    }
+    return parsed as ProjectFile
+  } catch {
+    return null
+  }
+}
+
 export default function App() {
-  const { dispatch } = useAppState()
+  const { state, dispatch } = useAppState()
   const stageRef = React.useRef<HTMLDivElement>(null)
   const [panelVisibility, setPanelVisibility] = React.useState({
     library: true,
@@ -126,13 +149,64 @@ export default function App() {
   )
 
   const handleMainAction = React.useCallback(
-    (id: string) => {
+    async (id: string) => {
       if (id === "reset-scene") {
         dispatch({ type: "scene/reset" })
         setSceneZoom(1)
+        return
+      }
+      if (id === "save") {
+        if (!isTauri()) {
+          window.alert("Sauvegarde disponible uniquement via Tauri.")
+          return
+        }
+        try {
+          const path = await save({
+            filters: [{ name: "Projet Macronade", extensions: ["json"] }],
+            defaultPath: "projet-macronade.json",
+          })
+          if (!path) {
+            return
+          }
+          const project = createProjectFile(state)
+          await invoke("save_project", {
+            path,
+            contents: JSON.stringify(project, null, 2),
+          })
+        } catch (error) {
+          console.error("Echec de la sauvegarde.", error)
+          window.alert("Echec de la sauvegarde du projet.")
+        }
+        return
+      }
+      if (id === "load") {
+        if (!isTauri()) {
+          window.alert("Chargement disponible uniquement via Tauri.")
+          return
+        }
+        try {
+          const selection = await open({
+            filters: [{ name: "Projet Macronade", extensions: ["json"] }],
+            multiple: false,
+          })
+          const path = Array.isArray(selection) ? selection[0] : selection
+          if (!path) {
+            return
+          }
+          const contents = await invoke<string>("load_project", { path })
+          const project = parseProjectFile(contents)
+          if (!project) {
+            window.alert("Le fichier ne ressemble pas a un projet valide.")
+            return
+          }
+          dispatch({ type: "project/load", project })
+        } catch (error) {
+          console.error("Echec du chargement.", error)
+          window.alert("Echec du chargement du projet.")
+        }
       }
     },
-    [dispatch],
+    [dispatch, state],
   )
 
   const handleToolsAction = React.useCallback((id: string) => {

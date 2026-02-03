@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "timeline": {
+    "fps": 24,
+    "startFrame": 0,
+    "endFrame": 239,
+    "currentFrame": 0,
+    "keyframes": [
+      0,
+      24
+    ],
+    "keyframeStates": {
+      "0": {
+        "scene": {
+          "backgroundPath": "/decors/bureau.png",
+          "backgroundSize": {
+            "width": 1536,
+            "height": 1024
+          },
+          "items": [
+            {
+              "id": 1,
+              "kind": "pantin",
+              "label": "Manu Test",
+              "assetPath": "/pantins/manu_test.svg",
+              "x": 394.86315789473684,
+              "y": 297.8526315789473,
+              "scale": 1.3,
+              "rotation": 0,
+              "width": 597,
+              "height": 561,
+              "variants": {},
+              "memberRotations": {
+                "bras_droite": -72.50088245203307,
+                "bras_gauche": 68.04864299770924
+              }
+            }
+          ]
+        },
+        "layers": {
+          "items": [
+            {
+              "id": 0,
+              "name": "Bureau",
+              "visible": true,
+              "locked": true,
+              "kind": "background"
+            },
+            {
+              "id": 1,
+              "name": "Manu Test",
+              "visible": true,
+              "locked": false,
+              "kind": "item"
+            }
+          ],
+          "activeLayerId": 1
+        }
+      },
+      "24": {
+        "scene": {
+          "backgroundPath": "/decors/bureau.png",
+          "backgroundSize": {
+            "width": 1536,
+            "height": 1024
+          },
+          "items": [
+            {
+              "id": 1,
+              "kind": "pantin",
+              "label": "Manu Test",
+              "assetPath": "/pantins/manu_test.svg",
+              "x": 384.08421052631576,
+              "y": 118.20350877192976,
+              "scale": 1.3,
+              "rotation": 0,
+              "width": 597,
+              "height": 561,
+              "variants": {
+                "main_gauche": "verso",
+                "main_droite": "verso"
+              },
+              "memberRotations": {
+                "bras_droite": 61.41615859796038,
+                "av-bras_droite": 298.50313845445027,
+                "bras_gauche": -53.75164186339629,
+                "av-bras_gauche": 50.698772554253644,
+                "cuisse_droite": 55.368764048807634,
+                "tibia_droite": -96.43297363398761,
+                "cuisse_gauche": -63.20816494010597,
+                "tibia_gauche": 107.15108173606099
+              }
+            }
+          ]
+        },
+        "layers": {
+          "items": [
+            {
+              "id": 0,
+              "name": "Bureau",
+              "visible": true,
+              "locked": true,
+              "kind": "background"
+            },
+            {
+              "id": 1,
+              "name": "Manu Test",
+              "visible": true,
+              "locked": false,
+              "kind": "item"
+            }
+          ],
+          "activeLayerId": 1
+        }
+      }
+    },
+    "loopEnabled": true,
+    "isPlaying": false
+  },
+  "scene": {
+    "backgroundPath": "/decors/bureau.png",
+    "backgroundSize": {
+      "width": 1536,
+      "height": 1024
+    },
+    "items": [
+      {
+        "id": 1,
+        "kind": "pantin",
+        "label": "Manu Test",
+        "assetPath": "/pantins/manu_test.svg",
+        "x": 394.86315789473684,
+        "y": 297.8526315789473,
+        "scale": 1.3,
+        "rotation": 0,
+        "width": 597,
+        "height": 561,
+        "variants": {},
+        "memberRotations": {
+          "bras_droite": -72.50088245203307,
+          "bras_gauche": 68.04864299770924
+        }
+      }
+    ]
+  },
+  "layers": {
+    "items": [
+      {
+        "id": 0,
+        "name": "Bureau",
+        "visible": true,
+        "locked": true,
+        "kind": "background"
+      },
+      {
+        "id": 1,
+        "name": "Manu Test",
+        "visible": true,
+        "locked": false,
+        "kind": "item"
+      }
+    ],
+    "activeLayerId": 1
+  },
+  "selection": {
+    "type": "scene",
+    "itemId": 1
+  }
+}
