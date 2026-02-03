@@ -1,10 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@source "../index.html";
+@source "./**/*.{ts,tsx}";
 
 :root {
   --background: 222 47% 11%;
@@ -105,7 +102,6 @@ body {
 .scene-stage {
   background-color: #0f172a;
   border: 1px solid #1f2937;
-  border-radius: 12px;
   box-shadow: none;
   position: relative;
 }
@@ -114,7 +110,7 @@ body {
   background-color: rgba(31, 41, 55, 0.96);
   border: 1px solid #374151;
   border-radius: 12px;
-  box-shadow: 0 18px 30px rgba(2, 6, 23, 0.45);
+  box-shadow: none;
   backdrop-filter: none;
 }
 
@@ -124,23 +120,19 @@ body {
 }
 
 .panel-corner {
-  height: 18px;
-  width: 18px;
+  height: 24px;
+  width: 24px;
   z-index: 20;
-  opacity: 0.7;
+  opacity: 0;
 }
 
 .panel-corner::after {
-  content: "";
-  position: absolute;
-  inset: 4px;
-  border: 2px solid rgba(148, 163, 184, 0.5);
-  border-radius: 3px;
+  display: none;
 }
 
 .panel-corner--tl {
-  left: 6px;
-  top: 6px;
+  left: 1px;
+  top: 1px;
   cursor: nwse-resize;
 }
 
@@ -150,8 +142,8 @@ body {
 }
 
 .panel-corner--tr {
-  right: 6px;
-  top: 6px;
+  right: 1px;
+  top: 1px;
   cursor: nesw-resize;
 }
 
@@ -161,8 +153,8 @@ body {
 }
 
 .panel-corner--bl {
-  bottom: 6px;
-  left: 6px;
+  bottom: 1px;
+  left: 1px;
   cursor: nesw-resize;
 }
 
@@ -172,8 +164,8 @@ body {
 }
 
 .panel-corner--br {
-  bottom: 6px;
-  right: 6px;
+  bottom: 1px;
+  right: 1px;
   cursor: nwse-resize;
 }
 
@@ -183,11 +175,11 @@ body {
 }
 
 .shadow-panel {
-  box-shadow: 0 18px 30px rgba(2, 6, 23, 0.45);
+  box-shadow: none;
 }
 
 .shadow-overlay {
-  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.35);
+  box-shadow: none;
 }
 
 .timeline-ruler {

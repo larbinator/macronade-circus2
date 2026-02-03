@@ -1,4 +1,4 @@
-import { defineConfig } from "vite"
+import { defineConfig, type ViteDevServer } from "vite"
 import react from "@vitejs/plugin-react"
 import path from "path"
 import tailwindcss from "@tailwindcss/vite"
@@ -158,11 +158,19 @@ const assetsManifestPlugin = () => {
     async configResolved() {
       await Promise.all([generateAssetsManifest(), generatePantinsManifest()])
     },
-    configureServer(server: { watcher: unknown; ws: unknown }) {
+    configureServer(server: ViteDevServer) {
       const publicDir = path.resolve(__dirname, "public")
       const watchDirs = assetCategories.map((category) => path.join(publicDir, category.dir))
+      const watchRoots = watchDirs.map((dir) => path.resolve(dir))
+      const isWatchedPath = (file: string) =>
+        watchRoots.some(
+          (root) => file === root || file.startsWith(`${root}${path.sep}`),
+        )
       server.watcher.add(watchDirs)
-      const onFsEvent = () => {
+      const onFsEvent = (file: string) => {
+        if (!isWatchedPath(file)) {
+          return
+        }
         schedule(() => {
           server.ws.send({ type: "full-reload", path: "/assets-manifest.json" })
         })
@@ -207,7 +215,11 @@ export default defineConfig({
       : undefined,
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      ignored: ["**/src-tauri/**", "**/dist/**"],
+      awaitWriteFinish: {
+        stabilityThreshold: 200,
+        pollInterval: 50,
+      },
     },
   },
 })

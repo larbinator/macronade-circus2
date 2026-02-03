@@ -233,10 +233,10 @@ const interpolateSnapshot = (
       item.attachment.memberId === other.attachment.memberId
     const attachment = attachmentMatch
       ? {
-          pantinId: item.attachment?.pantinId,
-          memberId: item.attachment?.memberId,
-          offsetX: lerp(item.attachment?.offsetX, other.attachment?.offsetX, t),
-          offsetY: lerp(item.attachment?.offsetY, other.attachment?.offsetY, t),
+          pantinId: item.attachment!.pantinId,
+          memberId: item.attachment!.memberId,
+          offsetX: lerp(item.attachment!.offsetX, other.attachment!.offsetX, t),
+          offsetY: lerp(item.attachment!.offsetY, other.attachment!.offsetY, t),
         }
       : item.attachment
         ? { ...item.attachment }
@@ -392,104 +392,12 @@ const resolveSelection = (
   return null
 }
 
-const applyFrameSnapshot = (state: AppState, frame: number): AppState => {
-  const nextTimeline = { ...state.timeline, currentFrame: frame }
-  const keyframes = sortKeyframes(state.timeline.keyframes)
-  const keyframeStates = state.timeline.keyframeStates
-  const prevFrame = [...keyframes].reverse().find((entry) => entry <= frame && keyframeStates[entry])
-  const nextFrame = keyframes.find((entry) => entry >= frame && keyframeStates[entry])
-
-  if (prevFrame === undefined && nextFrame === undefined) {
-    return { ...state, timeline: nextTimeline }
-  }
-
-  if (prevFrame === undefined && nextFrame !== undefined) {
-    const snapshot = keyframeStates[nextFrame]
-    if (!snapshot) {
-      return { ...state, timeline: nextTimeline }
-    }
-    const cloned = cloneSnapshot(snapshot)
-    return {
-      ...state,
-      timeline: nextTimeline,
-      scene: {
-        backgroundPath: cloned.scene.backgroundPath,
-        backgroundSize: cloned.scene.backgroundSize,
-        items: cloned.scene.items,
-      },
-      layers: {
-        items: cloned.layers.items,
-        activeLayerId: cloned.layers.activeLayerId,
-      },
-      selection: resolveSelection(
-        state.selection,
-        cloned.scene.items,
-        cloned.layers.items,
-      ),
-    }
-  }
-
-  if (nextFrame === undefined && prevFrame !== undefined) {
-    const snapshot = keyframeStates[prevFrame]
-    if (!snapshot) {
-      return { ...state, timeline: nextTimeline }
-    }
-    const cloned = cloneSnapshot(snapshot)
-    return {
-      ...state,
-      timeline: nextTimeline,
-      scene: {
-        backgroundPath: cloned.scene.backgroundPath,
-        backgroundSize: cloned.scene.backgroundSize,
-        items: cloned.scene.items,
-      },
-      layers: {
-        items: cloned.layers.items,
-        activeLayerId: cloned.layers.activeLayerId,
-      },
-      selection: resolveSelection(
-        state.selection,
-        cloned.scene.items,
-        cloned.layers.items,
-      ),
-    }
-  }
-
-  if (prevFrame === nextFrame && prevFrame !== undefined) {
-    const snapshot = keyframeStates[prevFrame]
-    if (!snapshot) {
-      return { ...state, timeline: nextTimeline }
-    }
-    const cloned = cloneSnapshot(snapshot)
-    return {
-      ...state,
-      timeline: nextTimeline,
-      scene: {
-        backgroundPath: cloned.scene.backgroundPath,
-        backgroundSize: cloned.scene.backgroundSize,
-        items: cloned.scene.items,
-      },
-      layers: {
-        items: cloned.layers.items,
-        activeLayerId: cloned.layers.activeLayerId,
-      },
-      selection: resolveSelection(
-        state.selection,
-        cloned.scene.items,
-        cloned.layers.items,
-      ),
-    }
-  }
-
-  const prevSnapshot = prevFrame !== undefined ? keyframeStates[prevFrame] : undefined
-  const nextSnapshot = nextFrame !== undefined ? keyframeStates[nextFrame] : undefined
-  if (!prevSnapshot || !nextSnapshot || prevFrame === undefined || nextFrame === undefined) {
-    return { ...state, timeline: nextTimeline }
-  }
-  const t =
-    nextFrame === prevFrame ? 0 : (frame - prevFrame) / (nextFrame - prevFrame)
-  const interpolated = interpolateSnapshot(prevSnapshot, nextSnapshot, t)
-  const cloned = cloneSnapshot(interpolated)
+const applySnapshotToState = (
+  state: AppState,
+  snapshot: KeyframeSnapshot,
+  nextTimeline: AppState["timeline"],
+): AppState => {
+  const cloned = cloneSnapshot(snapshot)
   return {
     ...state,
     timeline: nextTimeline,
@@ -508,6 +416,52 @@ const applyFrameSnapshot = (state: AppState, frame: number): AppState => {
       cloned.layers.items,
     ),
   }
+}
+
+const applyFrameSnapshot = (state: AppState, frame: number): AppState => {
+  const nextTimeline = { ...state.timeline, currentFrame: frame }
+  const keyframes = sortKeyframes(state.timeline.keyframes)
+  const keyframeStates = state.timeline.keyframeStates
+  const prevFrame = [...keyframes].reverse().find((entry) => entry <= frame && keyframeStates[entry])
+  const nextFrame = keyframes.find((entry) => entry >= frame && keyframeStates[entry])
+
+  if (prevFrame === undefined && nextFrame === undefined) {
+    return { ...state, timeline: nextTimeline }
+  }
+
+  if (prevFrame === undefined && nextFrame !== undefined) {
+    const snapshot = keyframeStates[nextFrame]
+    if (!snapshot) {
+      return { ...state, timeline: nextTimeline }
+    }
+    return applySnapshotToState(state, snapshot, nextTimeline)
+  }
+
+  if (nextFrame === undefined && prevFrame !== undefined) {
+    const snapshot = keyframeStates[prevFrame]
+    if (!snapshot) {
+      return { ...state, timeline: nextTimeline }
+    }
+    return applySnapshotToState(state, snapshot, nextTimeline)
+  }
+
+  if (prevFrame === nextFrame && prevFrame !== undefined) {
+    const snapshot = keyframeStates[prevFrame]
+    if (!snapshot) {
+      return { ...state, timeline: nextTimeline }
+    }
+    return applySnapshotToState(state, snapshot, nextTimeline)
+  }
+
+  const prevSnapshot = prevFrame !== undefined ? keyframeStates[prevFrame] : undefined
+  const nextSnapshot = nextFrame !== undefined ? keyframeStates[nextFrame] : undefined
+  if (!prevSnapshot || !nextSnapshot || prevFrame === undefined || nextFrame === undefined) {
+    return { ...state, timeline: nextTimeline }
+  }
+  const t =
+    nextFrame === prevFrame ? 0 : (frame - prevFrame) / (nextFrame - prevFrame)
+  const interpolated = interpolateSnapshot(prevSnapshot, nextSnapshot, t)
+  return applySnapshotToState(state, interpolated, nextTimeline)
 }
 const nextLayerName = (items: LayerItem[]) => {
   const base = "Layer"

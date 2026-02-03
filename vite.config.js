@@ -63,7 +63,7 @@ var parseAttributes = function (raw) {
     return attributes;
 };
 var parsePantinSvg = function (contents) {
-    var _a, _b;
+    var _a;
     var rotatable = new Set();
     var variants = {};
     var tagRegex = /<g\b[^>]*>/gi;
@@ -71,7 +71,7 @@ var parsePantinSvg = function (contents) {
     while ((match = tagRegex.exec(contents))) {
         var attrs = parseAttributes(match[0]);
         if (attrs["data-isrotatable"] === "true" || attrs["data-isrotatable"] === "1") {
-            var id = (_a = attrs.id) === null || _a === void 0 ? void 0 : _a.trim();
+            var id = attrs.id.trim();
             if (id) {
                 rotatable.add(id);
             }
@@ -79,7 +79,7 @@ var parsePantinSvg = function (contents) {
         var variantGroup = attrs["data-variant-groupe"];
         var variantName = attrs["data-variant-name"];
         if (variantGroup && variantName) {
-            var visibility = ((_b = attrs.visibility) !== null && _b !== void 0 ? _b : "").toLowerCase();
+            var visibility = ((_a = attrs.visibility) !== null && _a !== void 0 ? _a : "").toLowerCase();
             var isVisible = visibility === "true" || visibility === "visible";
             if (!variants[variantGroup]) {
                 variants[variantGroup] = { variants: [], defaultVariant: undefined };
@@ -252,8 +252,15 @@ var assetsManifestPlugin = function () {
         configureServer: function (server) {
             var publicDir = path.resolve(__dirname, "public");
             var watchDirs = assetCategories.map(function (category) { return path.join(publicDir, category.dir); });
+            var watchRoots = watchDirs.map(function (dir) { return path.resolve(dir); });
+            var isWatchedPath = function (file) {
+                return watchRoots.some(function (root) { return file === root || file.startsWith("".concat(root).concat(path.sep)); });
+            };
             server.watcher.add(watchDirs);
-            var onFsEvent = function () {
+            var onFsEvent = function (file) {
+                if (!isWatchedPath(file)) {
+                    return;
+                }
                 schedule(function () {
                     server.ws.send({ type: "full-reload", path: "/assets-manifest.json" });
                 });
@@ -295,7 +302,11 @@ export default defineConfig({
             : undefined,
         watch: {
             // 3. tell Vite to ignore watching `src-tauri`
-            ignored: ["**/src-tauri/**"],
+            ignored: ["**/src-tauri/**", "**/dist/**"],
+            awaitWriteFinish: {
+                stabilityThreshold: 200,
+                pollInterval: 50,
+            },
         },
     },
 });

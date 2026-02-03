@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useJsonManifest } from "@/hooks/use-json-manifest"
 import { useAppState } from "@/state/app-state"
 import { Box, Image as ImageIcon, RotateCw, User } from "lucide-react"
 
@@ -23,39 +24,30 @@ const iconMap: Record<string, typeof User> = {
   objets: Box,
 }
 
+const emptyCategories: AssetCategory[] = []
+
+const parseAssetsManifest = (data: unknown): AssetCategory[] => {
+  const parsed = data as { categories?: AssetCategory[] } | null
+  return Array.isArray(parsed?.categories) ? parsed.categories : []
+}
+
 export function LibraryPanel() {
   const { state, dispatch } = useAppState()
-  const [categories, setCategories] = React.useState<AssetCategory[]>([])
-  const [status, setStatus] = React.useState<"idle" | "loading" | "error">("idle")
-  const [activeTab, setActiveTab] = React.useState<string | undefined>(undefined)
+  const { data: categories, status, reload } = useJsonManifest("/assets-manifest.json", {
+    initialData: emptyCategories,
+    parse: parseAssetsManifest,
+  })
+  const [activeTab, setActiveTab] = React.useState<string>("")
   const [selectedLibraryAsset, setSelectedLibraryAsset] = React.useState<string | null>(
     null,
   )
-
-  const loadManifest = React.useCallback(async () => {
-    setStatus("loading")
-    try {
-      const response = await fetch("/assets-manifest.json")
-      if (!response.ok) {
-        throw new Error("manifest")
-      }
-      const data = (await response.json()) as { categories?: AssetCategory[] }
-      const nextCategories = Array.isArray(data.categories) ? data.categories : []
-      setCategories(nextCategories)
-      setStatus("idle")
-    } catch {
-      setCategories([])
-      setStatus("error")
-    }
-  }, [])
-
-  React.useEffect(() => {
-    void loadManifest()
-  }, [loadManifest])
+  const svgSizeCacheRef = React.useRef<Map<string, { width: number; height: number }>>(
+    new Map(),
+  )
 
   React.useEffect(() => {
     if (categories.length === 0) {
-      setActiveTab(undefined)
+      setActiveTab("")
       return
     }
     if (!activeTab || !categories.some((category) => category.id === activeTab)) {
@@ -71,6 +63,92 @@ export function LibraryPanel() {
     return null
   }, [state.selection, state.scene.items])
   const selectedAssetPath = selectedSceneItem?.assetPath ?? selectedLibraryAsset
+
+  const dispatchImport = React.useCallback(
+    (categoryId: string, item: AssetItem, size?: { width: number; height: number }) => {
+      dispatch({
+        type: "scene/import-asset",
+        categoryId,
+        assetId: item.id,
+        label: item.label,
+        path: item.path,
+        ...size,
+      })
+    },
+    [dispatch],
+  )
+
+  const getSvgSize = React.useCallback((contents: string) => {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(contents, "image/svg+xml")
+    const svg = doc.querySelector("svg")
+    const viewBox = svg?.getAttribute("viewBox")
+    if (viewBox) {
+      const parts = viewBox
+        .trim()
+        .split(/[\s,]+/)
+        .map((value) => Number(value))
+      if (parts.length === 4 && parts.every((value) => !Number.isNaN(value))) {
+        const width = Math.abs(parts[2])
+        const height = Math.abs(parts[3])
+        if (width > 0 && height > 0) {
+          return { width, height }
+        }
+      }
+    }
+    const widthAttr = svg?.getAttribute("width")
+    const heightAttr = svg?.getAttribute("height")
+    const width = widthAttr ? Number.parseFloat(widthAttr) : Number.NaN
+    const height = heightAttr ? Number.parseFloat(heightAttr) : Number.NaN
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return { width, height }
+    }
+    return null
+  }, [])
+
+  const handleImport = (categoryId: string, item: AssetItem) => {
+    const dispatchFallback = () => {
+      const image = new window.Image()
+      image.onload = () => {
+        dispatchImport(categoryId, item, {
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        })
+      }
+      image.onerror = () => {
+        dispatchImport(categoryId, item)
+      }
+      image.src = item.path
+    }
+
+    if (item.type === "svg") {
+      const cachedSize = svgSizeCacheRef.current.get(item.path)
+      if (cachedSize) {
+        dispatchImport(categoryId, item, cachedSize)
+        return
+      }
+      fetch(item.path)
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error("svg")
+          }
+          return response.text()
+        })
+        .then((contents) => {
+          const size = getSvgSize(contents)
+          if (size) {
+            svgSizeCacheRef.current.set(item.path, size)
+            dispatchImport(categoryId, item, size)
+            return
+          }
+          dispatchFallback()
+        })
+        .catch(() => { dispatchFallback(); })
+      return
+    }
+
+    dispatchFallback()
+  }
 
   if (status === "error") {
     return (
@@ -94,92 +172,6 @@ export function LibraryPanel() {
         Aucun asset disponible.
       </div>
     )
-  }
-
-  const handleImport = (categoryId: string, item: AssetItem) => {
-    const dispatchFallback = () => {
-      const image = new window.Image()
-      image.onload = () => {
-        dispatch({
-          type: "scene/import-asset",
-          categoryId,
-          assetId: item.id,
-          label: item.label,
-          path: item.path,
-          width: image.naturalWidth,
-          height: image.naturalHeight,
-        })
-      }
-      image.onerror = () => {
-        dispatch({
-          type: "scene/import-asset",
-          categoryId,
-          assetId: item.id,
-          label: item.label,
-          path: item.path,
-        })
-      }
-      image.src = item.path
-    }
-
-    if (item.type === "svg") {
-      fetch(item.path)
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error("svg")
-          }
-          return response.text()
-        })
-        .then((contents) => {
-          const parser = new DOMParser()
-          const doc = parser.parseFromString(contents, "image/svg+xml")
-          const svg = doc.querySelector("svg")
-          const viewBox = svg?.getAttribute("viewBox")
-          if (viewBox) {
-            const parts = viewBox
-              .trim()
-              .split(/[\s,]+/)
-              .map((value) => Number(value))
-            if (parts.length === 4 && parts.every((value) => !Number.isNaN(value))) {
-              const width = Math.abs(parts[2])
-              const height = Math.abs(parts[3])
-              if (width > 0 && height > 0) {
-                dispatch({
-                  type: "scene/import-asset",
-                  categoryId,
-                  assetId: item.id,
-                  label: item.label,
-                  path: item.path,
-                  width,
-                  height,
-                })
-                return
-              }
-            }
-          }
-          const widthAttr = svg?.getAttribute("width")
-          const heightAttr = svg?.getAttribute("height")
-          const width = widthAttr ? Number.parseFloat(widthAttr) : Number.NaN
-          const height = heightAttr ? Number.parseFloat(heightAttr) : Number.NaN
-          if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-            dispatch({
-              type: "scene/import-asset",
-              categoryId,
-              assetId: item.id,
-              label: item.label,
-              path: item.path,
-              width,
-              height,
-            })
-            return
-          }
-          dispatchFallback()
-        })
-        .catch(() => { dispatchFallback(); })
-      return
-    }
-
-    dispatchFallback()
   }
 
   return (
@@ -207,7 +199,7 @@ export function LibraryPanel() {
           className="h-8 w-8 rounded-full"
           aria-label="Rafraichir"
           title="Rafraichir"
-          onClick={() => loadManifest()}
+          onClick={() => reload()}
         >
           <RotateCw className="h-4 w-4" />
         </Button>

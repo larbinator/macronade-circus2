@@ -1,5 +1,7 @@
 import * as React from "react"
 import { PanelShell } from "@/components/PanelShell"
+import { useOverlayDrag } from "@/hooks/use-overlay-drag"
+import { usePersistedOverlay } from "@/hooks/use-persisted-overlay"
 import { cn } from "@/lib/utils"
 
 type FloatingPanelProps = {
@@ -16,14 +18,6 @@ type FloatingPanelProps = {
   className?: string
 }
 
-type DragState = {
-  pointerId: number
-  startX: number
-  startY: number
-  originX: number
-  originY: number
-}
-
 type ResizeState = {
   pointerId: number
   startX: number
@@ -34,20 +28,6 @@ type ResizeState = {
   startTop: number
   corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"
   target?: HTMLElement
-}
-
-type StoredPanelState = {
-  x: number
-  y: number
-  w: number
-  h: number
-  boundsW?: number
-  boundsH?: number
-  xPct?: number
-  yPct?: number
-  wPct?: number
-  hPct?: number
-  version?: number
 }
 
 const clamp = (value: number, min: number, max: number) =>
@@ -73,173 +53,47 @@ export function FloatingPanel({
     return `panel:${title.toLowerCase().replace(/\s+/g, "-")}`
   }, [storageKey, title])
 
-  const storedState = React.useMemo<StoredPanelState | null>(() => {
-    if (typeof window === "undefined") {
-      return null
-    }
-    try {
-      const raw = window.localStorage.getItem(resolvedStorageKey)
-      if (!raw) {
-        return null
-      }
-      const parsed = JSON.parse(raw) as StoredPanelState
-      const values = [parsed.x, parsed.y, parsed.w, parsed.h]
-      if (values.some((value) => typeof value !== "number" || !Number.isFinite(value))) {
-        return null
-      }
-      return parsed
-    } catch {
-      return null
-    }
-  }, [resolvedStorageKey])
+  const {
+    position,
+    setPosition,
+    size,
+    setSize,
+    positionRef,
+    sizeRef,
+    clampToBounds,
+    getBounds,
+    persistGeometry,
+    applyStoredToBounds,
+  } = usePersistedOverlay({
+    title,
+    storageKey: resolvedStorageKey,
+    boundsRef,
+    initialX,
+    initialY,
+    initialWidth,
+    initialHeight,
+    minWidth,
+    minHeight,
+    persistSize: true,
+  })
 
-  const [position, setPosition] = React.useState(() => ({
-    x: storedState?.x ?? initialX,
-    y: storedState?.y ?? initialY,
-  }))
-  const [size, setSize] = React.useState(() => ({
-    w: Math.max(storedState?.w ?? initialWidth, minWidth),
-    h: Math.max(storedState?.h ?? initialHeight, minHeight),
-  }))
-  const positionRef = React.useRef(position)
-  const sizeRef = React.useRef(size)
-  const dragRef = React.useRef<DragState | null>(null)
   const resizeRef = React.useRef<ResizeState | null>(null)
   const userSelectRef = React.useRef<string | null>(null)
-  const hydratedRef = React.useRef(false)
-  const restoredRef = React.useRef(false)
-  const storedStateRef = React.useRef<StoredPanelState | null>(storedState)
-
-  React.useEffect(() => {
-    positionRef.current = position
-  }, [position])
-
-  React.useEffect(() => {
-    sizeRef.current = size
-  }, [size])
-
-  const getBounds = React.useCallback(() => {
-    if (!boundsRef?.current) {
-      return null
-    }
-    const rect = boundsRef.current.getBoundingClientRect()
-    if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height)) {
-      return null
-    }
-    if (rect.width <= 0 || rect.height <= 0) {
-      return null
-    }
-    return rect
-  }, [boundsRef])
-
-  const clampToBounds = React.useCallback(() => {
-    const bounds = getBounds()
-    if (!bounds) {
-      return
-    }
-    const maxX = Math.max(0, bounds.width - sizeRef.current.w)
-    const maxY = Math.max(0, bounds.height - sizeRef.current.h)
-    setPosition((prev) => ({
-      x: clamp(prev.x, 0, maxX),
-      y: clamp(prev.y, 0, maxY),
-    }))
-  }, [getBounds])
-
-  React.useLayoutEffect(() => {
-    hydratedRef.current = true
-  }, [])
-
-  const persistGeometry = React.useCallback(() => {
-    if (typeof window === "undefined" || !hydratedRef.current) {
-      return
-    }
-    const bounds = getBounds()
-    if (!bounds) {
-      return
-    }
-    const payload: StoredPanelState = {
-      x: positionRef.current.x,
-      y: positionRef.current.y,
-      w: sizeRef.current.w,
-      h: sizeRef.current.h,
-      version: 1,
-      boundsW: bounds.width,
-      boundsH: bounds.height,
-      xPct: bounds.width > 0 ? positionRef.current.x / bounds.width : 0,
-      yPct: bounds.height > 0 ? positionRef.current.y / bounds.height : 0,
-      wPct: bounds.width > 0 ? sizeRef.current.w / bounds.width : 0,
-      hPct: bounds.height > 0 ? sizeRef.current.h / bounds.height : 0,
-    }
-    window.localStorage.setItem(resolvedStorageKey, JSON.stringify(payload))
-  }, [getBounds, resolvedStorageKey])
-
-  React.useEffect(() => {
-    if (typeof window === "undefined" || !hydratedRef.current) {
-      return
-    }
-    if (storedStateRef.current && !restoredRef.current) {
-      return
-    }
-    persistGeometry()
-  }, [persistGeometry, position, size])
-
+  const { startDrag, restoreUserSelect } = useOverlayDrag({
+    getBounds,
+    sizeRef,
+    positionRef,
+    setPosition,
+    persistGeometry,
+    userSelectRef,
+    shouldRestoreUserSelect: () => !resizeRef.current,
+  })
   React.useEffect(() => {
     clampToBounds()
     const onResize = () => { clampToBounds(); }
     window.addEventListener("resize", onResize)
     return () => { window.removeEventListener("resize", onResize); }
   }, [clampToBounds])
-
-  const applyStoredToBounds = React.useCallback(
-    (bounds: DOMRect) => {
-      const stored = storedStateRef.current
-      if (!stored || restoredRef.current) {
-        return false
-      }
-      let nextX = stored.x
-      let nextY = stored.y
-      let nextW = stored.w
-      let nextH = stored.h
-
-      if (stored.boundsW && stored.boundsH) {
-        const scaleX = bounds.width / stored.boundsW
-        const scaleY = bounds.height / stored.boundsH
-        if (typeof stored.xPct === "number") {
-          nextX = stored.xPct * bounds.width
-        } else {
-          nextX = stored.x * scaleX
-        }
-        if (typeof stored.yPct === "number") {
-          nextY = stored.yPct * bounds.height
-        } else {
-          nextY = stored.y * scaleY
-        }
-        if (typeof stored.wPct === "number") {
-          nextW = stored.wPct * bounds.width
-        } else {
-          nextW = stored.w * scaleX
-        }
-        if (typeof stored.hPct === "number") {
-          nextH = stored.hPct * bounds.height
-        } else {
-          nextH = stored.h * scaleY
-        }
-      }
-
-      nextW = clamp(nextW, minWidth, bounds.width)
-      nextH = clamp(nextH, minHeight, bounds.height)
-      const maxX = Math.max(0, bounds.width - nextW)
-      const maxY = Math.max(0, bounds.height - nextH)
-      nextX = clamp(nextX, 0, maxX)
-      nextY = clamp(nextY, 0, maxY)
-
-      setPosition({ x: nextX, y: nextY })
-      setSize({ w: nextW, h: nextH })
-      restoredRef.current = true
-      return true
-    },
-    [minHeight, minWidth],
-  )
 
   React.useLayoutEffect(() => {
     if (!boundsRef?.current) {
@@ -278,50 +132,6 @@ export function FloatingPanel({
     observer.observe(element)
     return () => { observer.disconnect(); }
   }, [applyStoredToBounds, boundsRef, clampToBounds, persistGeometry])
-
-  const restoreUserSelect = React.useCallback(() => {
-    if (userSelectRef.current !== null && !dragRef.current && !resizeRef.current) {
-      document.body.style.userSelect = userSelectRef.current
-      userSelectRef.current = null
-    }
-  }, [])
-
-  const handleDragMove = React.useCallback(
-    (event: PointerEvent) => {
-      const state = dragRef.current
-      if (!state || state.pointerId !== event.pointerId) {
-        return
-      }
-      const bounds = getBounds()
-      const deltaX = event.clientX - state.startX
-      const deltaY = event.clientY - state.startY
-      let nextX = state.originX + deltaX
-      let nextY = state.originY + deltaY
-      if (bounds) {
-        const maxX = Math.max(0, bounds.width - sizeRef.current.w)
-        const maxY = Math.max(0, bounds.height - sizeRef.current.h)
-        nextX = clamp(nextX, 0, maxX)
-        nextY = clamp(nextY, 0, maxY)
-      }
-      setPosition({ x: nextX, y: nextY })
-    },
-    [getBounds],
-  )
-
-  const stopDrag = React.useCallback(
-    (event: PointerEvent) => {
-      if (dragRef.current?.pointerId !== event.pointerId) {
-        return
-      }
-      dragRef.current = null
-      window.removeEventListener("pointermove", handleDragMove)
-      window.removeEventListener("pointerup", stopDrag)
-      window.removeEventListener("pointercancel", stopDrag)
-      persistGeometry()
-      restoreUserSelect()
-    },
-    [handleDragMove, persistGeometry, restoreUserSelect],
-  )
 
   const handleResizeMove = React.useCallback(
     (event: PointerEvent) => {
@@ -402,36 +212,12 @@ export function FloatingPanel({
 
   React.useEffect(() => {
     return () => {
-      window.removeEventListener("pointermove", handleDragMove)
-      window.removeEventListener("pointerup", stopDrag)
-      window.removeEventListener("pointercancel", stopDrag)
       window.removeEventListener("pointermove", handleResizeMove)
       window.removeEventListener("pointerup", stopResize)
       window.removeEventListener("pointercancel", stopResize)
       restoreUserSelect()
     }
-  }, [handleDragMove, handleResizeMove, restoreUserSelect, stopDrag, stopResize])
-
-  const startDrag = React.useCallback(
-    (event: React.PointerEvent<HTMLElement>) => {
-      event.preventDefault()
-      if (userSelectRef.current === null) {
-        userSelectRef.current = document.body.style.userSelect
-        document.body.style.userSelect = "none"
-      }
-      dragRef.current = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        originX: positionRef.current.x,
-        originY: positionRef.current.y,
-      }
-      window.addEventListener("pointermove", handleDragMove)
-      window.addEventListener("pointerup", stopDrag)
-      window.addEventListener("pointercancel", stopDrag)
-    },
-    [handleDragMove, stopDrag],
-  )
+  }, [handleResizeMove, restoreUserSelect, stopResize])
 
   const handleHeaderPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) {
@@ -489,6 +275,7 @@ export function FloatingPanel({
       <PanelShell
         title={title}
         className="h-full"
+        showHeader={false}
         headerProps={{
           onPointerDown: handleHeaderPointerDown,
         }}

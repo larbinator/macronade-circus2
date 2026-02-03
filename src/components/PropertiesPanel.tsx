@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
-import { useAppState } from "@/state/app-state"
+import { useJsonManifest } from "@/hooks/use-json-manifest"
+import { useAppState, type SceneItem } from "@/state/app-state"
 import { cn } from "@/lib/utils"
 
 type PantinVariant = {
@@ -22,6 +23,13 @@ type PantinDefinition = {
 
 type PantinsManifest = {
   pantins: PantinDefinition[]
+}
+
+const emptyPantins: PantinDefinition[] = []
+
+const parsePantinsManifest = (data: unknown): PantinDefinition[] => {
+  const parsed = data as PantinsManifest | null
+  return Array.isArray(parsed?.pantins) ? parsed.pantins : []
 }
 
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -61,9 +69,12 @@ function SmallSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 
 export function PropertiesPanel() {
   const { state, dispatch } = useAppState()
-  const [pantinsManifest, setPantinsManifest] = React.useState<PantinDefinition[]>([])
-  const [pantinsStatus, setPantinsStatus] = React.useState<"idle" | "loading" | "error">(
-    "idle",
+  const { data: pantinsManifest, status: pantinsStatus } = useJsonManifest(
+    "/pantins-manifest.json",
+    {
+      initialData: emptyPantins,
+      parse: parsePantinsManifest,
+    },
   )
   const [attachPantinId, setAttachPantinId] = React.useState<number | null>(null)
   const [attachMember, setAttachMember] = React.useState<string>("")
@@ -88,24 +99,29 @@ export function PropertiesPanel() {
       : "Aucun"
   const selectionKind = selectedSceneItem?.kind ?? (state.selection ? "layer" : "none")
 
-  React.useEffect(() => {
-    setPantinsStatus("loading")
-    fetch("/pantins-manifest.json")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("manifest")
-        }
-        return response.json() as Promise<PantinsManifest>
+  const updateSelectedItem = React.useCallback(
+    (patch: Partial<SceneItem>) => {
+      if (!selectedSceneItem) {
+        return
+      }
+      dispatch({
+        type: "scene/update-item",
+        itemId: selectedSceneItem.id,
+        patch,
       })
-      .then((data) => {
-        setPantinsManifest(Array.isArray(data.pantins) ? data.pantins : [])
-        setPantinsStatus("idle")
-      })
-      .catch(() => {
-        setPantinsManifest([])
-        setPantinsStatus("error")
-      })
-  }, [])
+    },
+    [dispatch, selectedSceneItem],
+  )
+
+  const handleNumberInput = React.useCallback(
+    (rawValue: string, onValid: (value: number) => void) => {
+      const value = Number(rawValue)
+      if (!Number.isNaN(value)) {
+        onValid(value)
+      }
+    },
+    [],
+  )
 
   const resolvePantinDefinition = (assetPath: string | null | undefined) => {
     if (!assetPath) {
@@ -214,17 +230,9 @@ export function PropertiesPanel() {
                   placeholder="-"
                   disabled={!selectedSceneItem}
                   onChange={(event) => {
-                    if (!selectedSceneItem) {
-                      return
-                    }
-                    const value = Number(event.target.value)
-                    if (!Number.isNaN(value)) {
-                      dispatch({
-                        type: "scene/update-item",
-                        itemId: selectedSceneItem.id,
-                        patch: { x: value },
-                      })
-                    }
+                    handleNumberInput(event.target.value, (value) => {
+                      updateSelectedItem({ x: value })
+                    })
                   }}
                 />
                 <SmallInput
@@ -232,17 +240,9 @@ export function PropertiesPanel() {
                   placeholder="-"
                   disabled={!selectedSceneItem}
                   onChange={(event) => {
-                    if (!selectedSceneItem) {
-                      return
-                    }
-                    const value = Number(event.target.value)
-                    if (!Number.isNaN(value)) {
-                      dispatch({
-                        type: "scene/update-item",
-                        itemId: selectedSceneItem.id,
-                        patch: { y: value },
-                      })
-                    }
+                    handleNumberInput(event.target.value, (value) => {
+                      updateSelectedItem({ y: value })
+                    })
                   }}
                 />
               </div>
@@ -255,18 +255,10 @@ export function PropertiesPanel() {
               className="w-20"
               disabled={!selectedSceneItem}
               onChange={(event) => {
-                if (!selectedSceneItem) {
-                  return
-                  }
-                  const value = Number(event.target.value)
-                  if (!Number.isNaN(value)) {
-                    dispatch({
-                      type: "scene/update-item",
-                      itemId: selectedSceneItem.id,
-                      patch: { scale: value },
-                    })
-                  }
-                }}
+                handleNumberInput(event.target.value, (value) => {
+                  updateSelectedItem({ scale: value })
+                })
+              }}
               />
             </FieldRow>
           <FieldRow label="Rotation">
@@ -276,18 +268,10 @@ export function PropertiesPanel() {
               className="w-20"
               disabled={!selectedSceneItem}
               onChange={(event) => {
-                if (!selectedSceneItem) {
-                  return
-                  }
-                  const value = Number(event.target.value)
-                  if (!Number.isNaN(value)) {
-                    dispatch({
-                      type: "scene/update-item",
-                      itemId: selectedSceneItem.id,
-                      patch: { rotation: value },
-                    })
-                  }
-                }}
+                handleNumberInput(event.target.value, (value) => {
+                  updateSelectedItem({ rotation: value })
+                })
+              }}
               />
             </FieldRow>
           </div>
@@ -334,10 +318,8 @@ export function PropertiesPanel() {
                             return
                           }
                           const nextValue = event.target.value
-                          dispatch({
-                            type: "scene/update-item",
-                            itemId: selectedSceneItem.id,
-                            patch: { variants: { ...itemVariants, [group]: nextValue } },
+                          updateSelectedItem({
+                            variants: { ...itemVariants, [group]: nextValue },
                           })
                         }}
                       >
@@ -381,22 +363,14 @@ export function PropertiesPanel() {
                       className="w-20"
                       value={Math.round(memberRotations[member] ?? 0)}
                       onChange={(event) => {
-                        if (!selectedSceneItem) {
-                          return
-                        }
-                        const value = Number(event.target.value)
-                        if (!Number.isNaN(value)) {
-                          dispatch({
-                            type: "scene/update-item",
-                            itemId: selectedSceneItem.id,
-                            patch: {
-                              memberRotations: {
-                                ...memberRotations,
-                                [member]: value,
-                              },
+                        handleNumberInput(event.target.value, (value) => {
+                          updateSelectedItem({
+                            memberRotations: {
+                              ...memberRotations,
+                              [member]: value,
                             },
                           })
-                        }
+                        })
                       }}
                     />
                   </FieldRow>

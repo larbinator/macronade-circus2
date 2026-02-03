@@ -112,7 +112,7 @@ export function Timeline() {
 
   return (
     <div className="relative z-20 w-full border-t border-border bg-[#1F2937] px-6 pb-4 pt-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1">
         <Toggle
           size="icon"
           className="h-7 w-7"

@@ -14,12 +14,10 @@ import {
   Film,
   FolderOpen,
   Hand,
-  LayoutDashboard,
   Layers,
   Maximize2,
   Save,
   Settings2,
-  Sparkles,
   Undo2,
   ZoomIn,
   ZoomOut,
@@ -35,12 +33,6 @@ const toolsItems = [
     icon: <Hand className="h-4 w-4" />,
     type: "toggle" as const,
   },
-  {
-    id: "onion",
-    label: "Onion skin",
-    icon: <Sparkles className="h-4 w-4" />,
-    type: "toggle" as const,
-  },
 ]
 
 const mainItems = [
@@ -50,11 +42,6 @@ const mainItems = [
     id: "reset-scene",
     label: "Reinitialiser scene",
     icon: <Undo2 className="h-4 w-4" />,
-  },
-  {
-    id: "reset-ui",
-    label: "Reinitialiser interface",
-    icon: <LayoutDashboard className="h-4 w-4" />,
   },
   {
     id: "toggle-library",
@@ -81,6 +68,46 @@ const mainItems = [
     type: "toggle" as const,
   },
 ]
+
+const panelConfigs = [
+  {
+    key: "library",
+    title: "Library",
+    storageKey: "panel-library",
+    initialX: 24,
+    initialY: 24,
+    initialWidth: 320,
+    initialHeight: 520,
+    Component: LibraryPanel,
+  },
+  {
+    key: "properties",
+    title: "Properties",
+    storageKey: "panel-properties",
+    initialX: 360,
+    initialY: 24,
+    initialWidth: 320,
+    initialHeight: 520,
+    Component: PropertiesPanel,
+  },
+  {
+    key: "layers",
+    title: "Layers",
+    storageKey: "panel-layers",
+    initialX: 360,
+    initialY: 560,
+    initialWidth: 320,
+    initialHeight: 260,
+    Component: LayersPanel,
+  },
+] as const
+
+const panelToggleIds = {
+  "toggle-library": "library",
+  "toggle-properties": "properties",
+  "toggle-timeline": "timeline",
+  "toggle-layers": "layers",
+} as const
 
 const parseProjectFile = (contents: string): ProjectFile | null => {
   try {
@@ -118,35 +145,25 @@ export default function App() {
     onion: false,
   })
 
-  const panelToggleState = React.useMemo(
-    () => ({
-      "toggle-library": panelVisibility.library,
-      "toggle-properties": panelVisibility.properties,
-      "toggle-timeline": panelVisibility.timeline,
-      "toggle-layers": panelVisibility.layers,
-    }),
-    [panelVisibility],
-  )
+  const panelToggleState = React.useMemo(() => {
+    const entries = Object.entries(panelToggleIds) as Array<
+      [
+        keyof typeof panelToggleIds,
+        (typeof panelToggleIds)[keyof typeof panelToggleIds],
+      ]
+    >
+    return Object.fromEntries(
+      entries.map(([toggleId, key]) => [toggleId, panelVisibility[key]]),
+    )
+  }, [panelVisibility])
 
-  const handleMainToggle = React.useCallback(
-    (id: string, pressed: boolean) => {
-      setPanelVisibility((prev) => {
-        switch (id) {
-          case "toggle-library":
-            return { ...prev, library: pressed }
-          case "toggle-properties":
-            return { ...prev, properties: pressed }
-          case "toggle-timeline":
-            return { ...prev, timeline: pressed }
-          case "toggle-layers":
-            return { ...prev, layers: pressed }
-          default:
-            return prev
-        }
-      })
-    },
-    [],
-  )
+  const handleMainToggle = React.useCallback((id: string, pressed: boolean) => {
+    if (!(id in panelToggleIds)) {
+      return
+    }
+    const key = panelToggleIds[id as keyof typeof panelToggleIds]
+    setPanelVisibility((prev) => ({ ...prev, [key]: pressed }))
+  }, [])
 
   const handleMainAction = React.useCallback(
     async (id: string) => {
@@ -281,45 +298,26 @@ export default function App() {
               <SceneView zoom={sceneZoom} showHandles={toolsToggles.handles} />
             </div>
 
-            {panelVisibility.library ? (
-              <FloatingPanel
-                title="Library"
-                storageKey="panel-library"
-                initialX={24}
-                initialY={24}
-                initialWidth={320}
-                initialHeight={520}
-                boundsRef={stageRef}
-              >
-                <LibraryPanel />
-              </FloatingPanel>
-            ) : null}
-            {panelVisibility.properties ? (
-              <FloatingPanel
-                title="Properties"
-                storageKey="panel-properties"
-                initialX={360}
-                initialY={24}
-                initialWidth={320}
-                initialHeight={520}
-                boundsRef={stageRef}
-              >
-                <PropertiesPanel />
-              </FloatingPanel>
-            ) : null}
-            {panelVisibility.layers ? (
-              <FloatingPanel
-                title="Layers"
-                storageKey="panel-layers"
-                initialX={360}
-                initialY={560}
-                initialWidth={320}
-                initialHeight={260}
-                boundsRef={stageRef}
-              >
-                <LayersPanel />
-              </FloatingPanel>
-            ) : null}
+            {panelConfigs.map((panel) => {
+              if (!panelVisibility[panel.key]) {
+                return null
+              }
+              const PanelComponent = panel.Component
+              return (
+                <FloatingPanel
+                  key={panel.key}
+                  title={panel.title}
+                  storageKey={panel.storageKey}
+                  initialX={panel.initialX}
+                  initialY={panel.initialY}
+                  initialWidth={panel.initialWidth}
+                  initialHeight={panel.initialHeight}
+                  boundsRef={stageRef}
+                >
+                  <PanelComponent />
+                </FloatingPanel>
+              )
+            })}
           </div>
         </main>
         {panelVisibility.timeline ? <Timeline /> : null}
