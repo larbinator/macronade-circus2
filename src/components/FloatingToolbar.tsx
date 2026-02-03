@@ -233,7 +233,7 @@ export function FloatingToolbar({
       persistGeometry()
     })
     observer.observe(element)
-    return () => observer.disconnect()
+    return () => { observer.disconnect(); }
   }, [applyStoredToBounds, boundsRef, clampToBounds, persistGeometry])
 
   const restoreUserSelect = React.useCallback(() => {

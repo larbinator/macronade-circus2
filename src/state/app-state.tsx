@@ -235,8 +235,8 @@ const interpolateSnapshot = (
       ? {
           pantinId: item.attachment?.pantinId,
           memberId: item.attachment?.memberId,
-          offsetX: lerp(item.attachment?.offsetX, other.attachment!.offsetX, t),
-          offsetY: lerp(item.attachment?.offsetY, other.attachment!.offsetY, t),
+          offsetX: lerp(item.attachment?.offsetX, other.attachment?.offsetX, t),
+          offsetY: lerp(item.attachment?.offsetY, other.attachment?.offsetY, t),
         }
       : item.attachment
         ? { ...item.attachment }

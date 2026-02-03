@@ -158,7 +158,7 @@ const assetsManifestPlugin = () => {
     async configResolved() {
       await Promise.all([generateAssetsManifest(), generatePantinsManifest()])
     },
-    configureServer(server: { watcher: unknown; ws: any }) {
+    configureServer(server: { watcher: unknown; ws: unknown }) {
       const publicDir = path.resolve(__dirname, "public")
       const watchDirs = assetCategories.map((category) => path.join(publicDir, category.dir))
       server.watcher.add(watchDirs)

@@ -602,7 +602,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
       })
       setHandles(nextHandles)
     })
-    return () => cancelAnimationFrame(frame)
+    return () => { cancelAnimationFrame(frame); }
   }, [
     scene.items,
     selectedPantin?.id,
@@ -741,7 +741,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
                     overflow: "visible",
                     cursor: isLocked(item.id) ? "default" : "move",
                   }}
-                  onPointerDown={(event) => handlePointerDown(event, item.id)}
+                  onPointerDown={(event) => { handlePointerDown(event, item.id); }}
                   dangerouslySetInnerHTML={{ __html: inner }}
                 />
               </g>
@@ -824,7 +824,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
                   r={12}
                   fill="transparent"
                   onPointerDown={(event) =>
-                    startMemberRotation(event, handle.itemId, handle.memberId)
+                   { startMemberRotation(event, handle.itemId, handle.memberId); }
                   }
                 />
               </g>
