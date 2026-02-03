@@ -185,9 +185,9 @@ export function FloatingPanel({
 
   React.useEffect(() => {
     clampToBounds()
-    const onResize = () => clampToBounds()
+    const onResize = () => { clampToBounds(); }
     window.addEventListener("resize", onResize)
-    return () => window.removeEventListener("resize", onResize)
+    return () => { window.removeEventListener("resize", onResize); }
   }, [clampToBounds])
 
   const applyStoredToBounds = React.useCallback(
@@ -276,7 +276,7 @@ export function FloatingPanel({
       persistGeometry()
     })
     observer.observe(element)
-    return () => observer.disconnect()
+    return () => { observer.disconnect(); }
   }, [applyStoredToBounds, boundsRef, clampToBounds, persistGeometry])
 
   const restoreUserSelect = React.useCallback(() => {
@@ -484,7 +484,7 @@ export function FloatingPanel({
           startDrag(event)
         }
       }}
-      onContextMenu={(event) => event.preventDefault()}
+      onContextMenu={(event) => { event.preventDefault(); }}
     >
       <PanelShell
         title={title}
@@ -494,9 +494,9 @@ export function FloatingPanel({
         }}
         resizeHandleProps={{
           onPointerDown: handleResizePointerDown,
-          onPointerMove: (event) => handleResizeMove(event.nativeEvent),
-          onPointerUp: (event) => stopResize(event.nativeEvent),
-          onPointerCancel: (event) => stopResize(event.nativeEvent),
+          onPointerMove: (event) => { handleResizeMove(event.nativeEvent); },
+          onPointerUp: (event) => { stopResize(event.nativeEvent); },
+          onPointerCancel: (event) => { stopResize(event.nativeEvent); },
         }}
       >
         {children}

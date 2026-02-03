@@ -233,10 +233,10 @@ const interpolateSnapshot = (
       item.attachment.memberId === other.attachment.memberId
     const attachment = attachmentMatch
       ? {
-          pantinId: item.attachment!.pantinId,
-          memberId: item.attachment!.memberId,
-          offsetX: lerp(item.attachment!.offsetX, other.attachment!.offsetX, t),
-          offsetY: lerp(item.attachment!.offsetY, other.attachment!.offsetY, t),
+          pantinId: item.attachment?.pantinId,
+          memberId: item.attachment?.memberId,
+          offsetX: lerp(item.attachment?.offsetX, other.attachment!.offsetX, t),
+          offsetY: lerp(item.attachment?.offsetY, other.attachment!.offsetY, t),
         }
       : item.attachment
         ? { ...item.attachment }
@@ -317,7 +317,7 @@ const normalizeProjectFile = (project: ProjectFile): ProjectFile => {
   const keyframes = sortKeyframes(source.timeline.keyframes ?? [])
   const keyframeStates: Record<number, KeyframeSnapshot> = {}
   keyframes.forEach((frame) => {
-    const snapshot = source.timeline.keyframeStates?.[frame]
+    const snapshot = source.timeline.keyframeStates[frame]
     if (snapshot) {
       keyframeStates[frame] = cloneSnapshot(snapshot)
     }

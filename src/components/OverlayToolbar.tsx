@@ -53,7 +53,7 @@ export function OverlayToolbar({
         aria-label={expanded ? "Replier" : "Deplier"}
         title={expanded ? "Replier" : "Deplier"}
         className="h-7 w-7 rounded-full"
-        onClick={() => setExpanded((prev) => !prev)}
+        onClick={() => { setExpanded((prev) => !prev); }}
       >
         {expanded ? (
           <ChevronsLeft className="h-4 w-4" />
@@ -95,7 +95,7 @@ export function OverlayToolbar({
                     "data-[state=on]:bg-[#E53E3E] data-[state=on]:border-[#C53030]",
                     "data-[state=on]:text-white",
                   )}
-                  pressed={isControlled ? activeItems?.[item.id] : undefined}
+                  pressed={isControlled ? activeItems[item.id] : undefined}
                   onPressedChange={(pressed) => onItemToggle?.(item.id, pressed)}
                 >
                   {item.icon}

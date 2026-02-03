@@ -437,7 +437,7 @@ export function PropertiesPanel() {
               <SmallSelect
                 value={attachMember}
                 disabled={attachMembers.length === 0}
-                onChange={(event) => setAttachMember(event.target.value)}
+                onChange={(event) => { setAttachMember(event.target.value); }}
               >
                 {attachMembers.length === 0 ? (
                   <option value="">Aucun membre</option>

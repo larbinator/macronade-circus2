@@ -80,10 +80,10 @@ export function ScrollArea({
     if (!viewport || !content || typeof ResizeObserver === "undefined") {
       return
     }
-    const observer = new ResizeObserver(() => scheduleUpdate())
+    const observer = new ResizeObserver(() => { scheduleUpdate(); })
     observer.observe(viewport)
     observer.observe(content)
-    return () => observer.disconnect()
+    return () => { observer.disconnect(); }
   }, [scheduleUpdate, updateMetrics])
 
   React.useEffect(() => {
@@ -96,7 +96,7 @@ export function ScrollArea({
       scheduleUpdate()
     }
     viewport.addEventListener("scroll", onScroll, { passive: true })
-    return () => viewport.removeEventListener("scroll", onScroll)
+    return () => { viewport.removeEventListener("scroll", onScroll); }
   }, [scheduleUpdate])
 
   React.useEffect(() => {
@@ -208,9 +208,9 @@ export function ScrollArea({
         showScrollbars ? "scroll-area--with-bars" : "",
         className,
       )}
-      onPointerEnter={() => setIsHovering(true)}
-      onPointerLeave={() => setIsHovering(false)}
-      onWheel={() => setIsScrolling(true)}
+      onPointerEnter={() => { setIsHovering(true); }}
+      onPointerLeave={() => { setIsHovering(false); }}
+      onWheel={() => { setIsScrolling(true); }}
     >
       <div ref={viewportRef} className="scroll-area-viewport h-full w-full overflow-auto">
         <div ref={contentRef}>{children}</div>
@@ -227,7 +227,7 @@ export function ScrollArea({
               width: "100%",
               transform: `translateY(${thumbTop}px)`,
             }}
-            onPointerDown={(event) => startDrag(event, "y")}
+            onPointerDown={(event) => { startDrag(event, "y"); }}
           />
         </div>
       ) : null}
@@ -243,7 +243,7 @@ export function ScrollArea({
               height: "100%",
               transform: `translateX(${thumbLeft}px)`,
             }}
-            onPointerDown={(event) => startDrag(event, "x")}
+            onPointerDown={(event) => { startDrag(event, "x"); }}
           />
         </div>
       ) : null}

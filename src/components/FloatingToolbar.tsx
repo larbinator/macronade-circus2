@@ -191,7 +191,7 @@ export function FloatingToolbar({
       persistGeometry()
     })
     observer.observe(element)
-    return () => observer.disconnect()
+    return () => { observer.disconnect(); }
   }, [clampToBounds, persistGeometry])
 
   React.useEffect(() => {
@@ -200,7 +200,7 @@ export function FloatingToolbar({
       clampToBounds()
     }
     window.addEventListener("resize", onResize)
-    return () => window.removeEventListener("resize", onResize)
+    return () => { window.removeEventListener("resize", onResize); }
   }, [measure, clampToBounds])
 
   React.useLayoutEffect(() => {
@@ -334,7 +334,7 @@ export function FloatingToolbar({
           handleDragPointerDown(event)
         }
       }}
-      onContextMenu={(event) => event.preventDefault()}
+      onContextMenu={(event) => { event.preventDefault(); }}
     >
       <OverlayToolbar
         title={title}

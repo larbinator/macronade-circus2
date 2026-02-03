@@ -40,7 +40,7 @@ const parsePantinSvg = (contents: string) => {
   while ((match = tagRegex.exec(contents))) {
     const attrs = parseAttributes(match[0])
     if (attrs["data-isrotatable"] === "true" || attrs["data-isrotatable"] === "1") {
-      const id = attrs.id?.trim()
+      const id = attrs.id.trim()
       if (id) {
         rotatable.add(id)
       }
@@ -158,7 +158,7 @@ const assetsManifestPlugin = () => {
     async configResolved() {
       await Promise.all([generateAssetsManifest(), generatePantinsManifest()])
     },
-    configureServer(server: { watcher: any; ws: any }) {
+    configureServer(server: { watcher: unknown; ws: any }) {
       const publicDir = path.resolve(__dirname, "public")
       const watchDirs = assetCategories.map((category) => path.join(publicDir, category.dir))
       server.watcher.add(watchDirs)

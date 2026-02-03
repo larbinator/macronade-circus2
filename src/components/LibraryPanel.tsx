@@ -50,7 +50,7 @@ export function LibraryPanel() {
   }, [])
 
   React.useEffect(() => {
-    loadManifest()
+    void loadManifest()
   }, [loadManifest])
 
   React.useEffect(() => {
@@ -175,7 +175,7 @@ export function LibraryPanel() {
           }
           dispatchFallback()
         })
-        .catch(() => dispatchFallback())
+        .catch(() => { dispatchFallback(); })
       return
     }
 
@@ -226,8 +226,8 @@ export function LibraryPanel() {
                   }
                   aria-label={item.label}
                   title={item.label}
-                  onClick={() => setSelectedLibraryAsset(item.path)}
-                  onDoubleClick={() => handleImport(category.id, item)}
+                  onClick={() => { setSelectedLibraryAsset(item.path); }}
+                  onDoubleClick={() => { handleImport(category.id, item); }}
                 >
                   <div className="flex h-[96px] w-[96px] items-center justify-center rounded-md border border-[#2B3444] bg-[#111827]">
                     <img

@@ -259,7 +259,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
       setSize({ w: rect.width, h: rect.height })
     })
     observer.observe(element)
-    return () => observer.disconnect()
+    return () => { observer.disconnect(); }
   }, [])
 
   const layerOrder = layers.items.map((layer) => layer.id)
@@ -477,7 +477,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
         dispatch({ type: "scene/clear-attachment-request" })
       }
     })
-    return () => cancelAnimationFrame(frame)
+    return () => { cancelAnimationFrame(frame); }
   }, [attachmentRequest, dispatch, getEffectiveTransform, getMemberContext, scene.items])
 
   const selectedItem =
@@ -713,7 +713,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
                     stroke="rgba(161, 98, 74, 0.6)"
                     strokeDasharray="6 4"
                     style={{ cursor: isLocked(item.id) ? "default" : "move" }}
-                    onPointerDown={(event) => handlePointerDown(event, item.id)}
+                    onPointerDown={(event) => { handlePointerDown(event, item.id); }}
                   />
                 </g>
               )
@@ -815,7 +815,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
                   stroke="#C53030"
                   strokeWidth={2}
                   onPointerDown={(event) =>
-                    startMemberRotation(event, handle.itemId, handle.memberId)
+                    { startMemberRotation(event, handle.itemId, handle.memberId); }
                   }
                 />
                 <circle
