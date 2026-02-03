@@ -757,7 +757,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
                 height={height}
                 preserveAspectRatio="xMidYMid meet"
                 style={{ cursor: isLocked(item.id) ? "default" : "move" }}
-                onPointerDown={(event) => handlePointerDown(event, item.id)}
+                onPointerDown={(event) => { handlePointerDown(event, item.id); }}
               />
             </g>
           )
