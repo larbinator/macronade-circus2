@@ -207,25 +207,25 @@ export function LibraryPanel() {
       {categories.map((category) => {
         return (
           <TabsContent key={category.id} value={category.id}>
-            <div className="grid auto-rows-[96] grid-cols-[repeat(auto-fill,96px)] gap-[2px] content-start justify-start">
+            <div className="grid grid-cols-2 gap-2 content-start">
               {category.items.map((item) => (
                 <button
                   key={item.id}
                   className={
                     selectedAssetPath === item.path
-                      ? "group relative flex h-[96px] w-full items-center justify-center rounded-lg bg-[rgba(229,62,62,0.18)] shadow-sm transition ring-1 ring-[#C53030]"
-                      : "group relative flex h-[96px] w-full items-center justify-center rounded-lg bg-transparent transition hover:bg-[#2D3748] ring-1 ring-transparent hover:ring-[#4B5563]"
+                      ? "group relative flex aspect-square w-full items-center justify-center rounded-lg bg-[rgba(229,62,62,0.18)] p-[3px] shadow-sm transition ring-2 ring-inset ring-[#C53030]"
+                      : "group relative flex aspect-square w-full items-center justify-center rounded-lg bg-transparent p-[3px] transition hover:bg-[#2D3748] ring-1 ring-inset ring-transparent hover:ring-[#4B5563]"
                   }
                   aria-label={item.label}
                   title={item.label}
                   onClick={() => { setSelectedLibraryAsset(item.path); }}
                   onDoubleClick={() => { handleImport(category.id, item); }}
                 >
-                  <div className="flex h-[96px] w-[96px] items-center justify-center rounded-md border border-[#2B3444] bg-[#111827]">
+                  <div className="flex h-full w-full items-center justify-center rounded-md border border-[#2B3444] bg-[#111827] p-2">
                     <img
                       src={item.path}
                       alt={item.label}
-                      className="max-h-[88px] max-w-[88px] object-contain"
+                      className="max-h-full max-w-full object-contain"
                       loading="lazy"
                     />
                   </div>

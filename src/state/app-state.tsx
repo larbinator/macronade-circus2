@@ -135,7 +135,7 @@ const initialState: AppState = {
     fps: 24,
     startFrame: 0,
     endFrame: 239,
-    currentFrame: 1,
+    currentFrame: 0,
     keyframes: [],
     keyframeStates: {},
     loopEnabled: true,

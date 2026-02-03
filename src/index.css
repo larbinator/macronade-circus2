@@ -130,6 +130,16 @@ body {
   display: none;
 }
 
+.timeline-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.timeline-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 .panel-corner--tl {
   left: 1px;
   top: 1px;

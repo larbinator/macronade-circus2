@@ -250,6 +250,8 @@ export function PropertiesPanel() {
             )}
           <FieldRow label="Echelle">
             <SmallInput
+              type="number"
+              step={0.1}
               value={selectedSceneItem ? selectedSceneItem.scale.toFixed(2) : ""}
               placeholder="-"
               className="w-20"
