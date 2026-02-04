@@ -63,6 +63,12 @@
           "label": "Marteau",
           "path": "/objets/marteau.svg",
           "type": "svg"
+        },
+        {
+          "id": "wow",
+          "label": "Wow",
+          "path": "/objets/wow.svg",
+          "type": "svg"
         }
       ]
     }

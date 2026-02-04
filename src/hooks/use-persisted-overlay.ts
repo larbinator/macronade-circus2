@@ -179,9 +179,6 @@ export function usePersistedOverlay({
     if (typeof window === "undefined" || !hydratedRef.current) {
       return
     }
-    if (storedStateRef.current && !restoredRef.current) {
-      return
-    }
     const bounds = getBounds()
     if (!bounds) {
       return
@@ -208,9 +205,6 @@ export function usePersistedOverlay({
     if (typeof window === "undefined" || !hydratedRef.current) {
       return
     }
-    if (storedStateRef.current && !restoredRef.current) {
-      return
-    }
     if (persistTimeoutRef.current) {
       window.clearTimeout(persistTimeoutRef.current)
     }
@@ -222,9 +216,6 @@ export function usePersistedOverlay({
 
   React.useEffect(() => {
     if (typeof window === "undefined" || !hydratedRef.current) {
-      return
-    }
-    if (storedStateRef.current && !restoredRef.current) {
       return
     }
     schedulePersist()

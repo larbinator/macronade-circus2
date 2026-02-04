@@ -89,7 +89,6 @@ export function Timeline() {
       lastTimeRef.current = null
     }
   }, [timeline.isPlaying, dispatch])
-  const durationSpan = Math.max(1, timeline.endFrame - timeline.startFrame)
   const totalFrames = Math.max(1, timeline.endFrame - timeline.startFrame + 1)
   const paddingPx = 24
   const [pixelsPerFrame, setPixelsPerFrame] = React.useState(6)

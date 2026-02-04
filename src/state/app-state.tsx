@@ -121,6 +121,7 @@ type Action =
   | { type: "scene/set-background-size"; width: number; height: number }
   | { type: "scene/select-item"; itemId: number }
   | { type: "scene/update-item"; itemId: number; patch: Partial<SceneItem> }
+  | { type: "scene/duplicate-item"; itemId: number }
   | { type: "scene/reset" }
   | { type: "scene/request-attach"; itemId: number; pantinId: number; memberId: string }
   | { type: "scene/request-detach"; itemId: number }
@@ -473,6 +474,18 @@ const nextLayerName = (items: LayerItem[]) => {
   return `${base} ${index}`
 }
 
+const nextCopyName = (base: string, existing: Set<string>) => {
+  const root = `${base} copie`
+  if (!existing.has(root)) {
+    return root
+  }
+  let index = 2
+  while (existing.has(`${root} ${index}`)) {
+    index += 1
+  }
+  return `${root} ${index}`
+}
+
 const nextSceneId = (state: AppState) => {
   const layerMax = state.layers.items.reduce((maxId, layer) => Math.max(maxId, layer.id), 0)
   const sceneMax = state.scene.items.reduce((maxId, item) => Math.max(maxId, item.id), 0)
@@ -781,6 +794,51 @@ function reducer(state: AppState, action: Action): AppState {
           ),
         },
       })
+    case "scene/duplicate-item": {
+      const source = state.scene.items.find((item) => item.id === action.itemId)
+      if (!source) {
+        return state
+      }
+      const layer = state.layers.items.find((entry) => entry.id === action.itemId)
+      if (layer?.locked) {
+        return state
+      }
+      const nextId = nextSceneId(state)
+      const existingNames = new Set(state.layers.items.map((entry) => entry.name))
+      const label = nextCopyName(source.label, existingNames)
+      const offset = source.attachment ? 0 : 24
+      const newItem: SceneItem = {
+        ...cloneSceneItem(source),
+        id: nextId,
+        label,
+        x: source.x + offset,
+        y: source.y + offset,
+      }
+      const newLayer: LayerItem = {
+        id: nextId,
+        name: label,
+        visible: layer?.visible ?? true,
+        locked: false,
+        kind: "item",
+      }
+      const nextLayers = [...state.layers.items]
+      const layerIndex = layer
+        ? state.layers.items.findIndex((entry) => entry.id === layer.id)
+        : -1
+      const insertIndex = layerIndex >= 0 ? layerIndex + 1 : nextLayers.length
+      nextLayers.splice(insertIndex, 0, newLayer)
+      const nextState: AppState = {
+        ...state,
+        scene: { ...state.scene, items: [...state.scene.items, newItem] },
+        layers: {
+          ...state.layers,
+          items: nextLayers,
+          activeLayerId: nextId,
+        },
+        selection: { type: "scene", itemId: nextId },
+      }
+      return updateKeyframeStateIfNeeded(nextState)
+    }
     case "project/load": {
       const normalized = normalizeProjectFile(action.project)
       const selection = resolveSelection(

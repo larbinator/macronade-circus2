@@ -55,6 +55,7 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
   const { scene, layers, selection, attachmentRequest, timeline } = state
   const containerRef = React.useRef<HTMLDivElement>(null)
   const svgRef = React.useRef<SVGSVGElement>(null)
+  const menuRef = React.useRef<HTMLDivElement>(null)
   const dragRef = React.useRef<DragState | null>(null)
   const rotationRef = React.useRef<RotationDragState | null>(null)
   const [size, setSize] = React.useState({ w: 0, h: 0 })
@@ -62,6 +63,12 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
   const svgAssetsRef = React.useRef<Record<string, SvgAsset>>({})
   const pantinRefs = React.useRef<Map<number, SVGSVGElement>>(new Map())
   const [handles, setHandles] = React.useState<HandleInfo[]>([])
+  const [contextMenu, setContextMenu] = React.useState<{
+    open: boolean
+    x: number
+    y: number
+    itemId: number | null
+  }>({ open: false, x: 0, y: 0, itemId: null })
 
   const getMemberContext = React.useCallback(
     (pantinId: number, memberId: string) => {
@@ -275,6 +282,48 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
     return layer?.locked ?? false
   }
 
+  const closeContextMenu = React.useCallback(() => {
+    setContextMenu((prev) => (prev.open ? { ...prev, open: false, itemId: null } : prev))
+  }, [])
+
+  React.useEffect(() => {
+    if (!contextMenu.open) {
+      return
+    }
+    const handlePointerDown = (event: PointerEvent) => {
+      if (menuRef.current && menuRef.current.contains(event.target as Node)) {
+        return
+      }
+      closeContextMenu()
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeContextMenu()
+      }
+    }
+    window.addEventListener("pointerdown", handlePointerDown)
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown)
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [closeContextMenu, contextMenu.open])
+
+  React.useLayoutEffect(() => {
+    if (!contextMenu.open || !menuRef.current || !containerRef.current) {
+      return
+    }
+    const menuRect = menuRef.current.getBoundingClientRect()
+    const containerRect = containerRef.current.getBoundingClientRect()
+    const maxX = containerRect.width - menuRect.width - 8
+    const maxY = containerRect.height - menuRect.height - 8
+    const nextX = Math.min(Math.max(8, contextMenu.x), Math.max(8, maxX))
+    const nextY = Math.min(Math.max(8, contextMenu.y), Math.max(8, maxY))
+    if (nextX !== contextMenu.x || nextY !== contextMenu.y) {
+      setContextMenu((prev) => ({ ...prev, x: nextX, y: nextY }))
+    }
+  }, [contextMenu.open, contextMenu.x, contextMenu.y])
+
   const handlePointerDown = (event: React.PointerEvent<SVGElement>, itemId: number) => {
     if (event.button !== 0) {
       return
@@ -395,6 +444,23 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
     dispatch({ type: "selection/clear" })
   }
 
+  const handleContextMenu = (event: React.MouseEvent<SVGElement>, itemId: number) => {
+    event.preventDefault()
+    event.stopPropagation()
+    dispatch({ type: "scene/select-item", itemId })
+    const container = containerRef.current
+    if (!container) {
+      return
+    }
+    const rect = container.getBoundingClientRect()
+    setContextMenu({
+      open: true,
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+      itemId,
+    })
+  }
+
   React.useEffect(() => {
     if (!attachmentRequest) {
       return
@@ -496,6 +562,140 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
   const viewBoxHeight = viewHeight / safeZoom
   const viewBoxX = (viewWidth - viewBoxWidth) / 2
   const viewBoxY = (viewHeight - viewBoxHeight) / 2
+
+  const updateItemCenter = React.useCallback(
+    (itemId: number, targetCenterX: number, targetCenterY: number) => {
+      const item = scene.items.find((entry) => entry.id === itemId)
+      if (!item) {
+        return
+      }
+      const effective = getEffectiveTransform(item)
+      if (item.kind === "objet" && item.attachment) {
+        const context = getMemberContext(
+          item.attachment.pantinId,
+          item.attachment.memberId,
+        )
+        if (!context) {
+          return
+        }
+        const centerScene = new DOMPoint(targetCenterX, targetCenterY)
+        const centerScreen = centerScene.matrixTransform(context.sceneCTM)
+        const centerLocal = centerScreen.matrixTransform(context.memberCTM.inverse())
+        dispatch({
+          type: "scene/update-item",
+          itemId,
+          patch: {
+            attachment: {
+              ...item.attachment,
+              offsetX: centerLocal.x,
+              offsetY: centerLocal.y,
+            },
+          },
+        })
+        return
+      }
+
+      dispatch({
+        type: "scene/update-item",
+        itemId,
+        patch: {
+          x: targetCenterX - effective.width / 2,
+          y: targetCenterY - effective.height / 2,
+        },
+      })
+    },
+    [dispatch, getEffectiveTransform, getMemberContext, scene.items],
+  )
+
+  const centerItem = React.useCallback(
+    (itemId: number, axis: "horizontal" | "vertical") => {
+      const item = scene.items.find((entry) => entry.id === itemId)
+      if (!item) {
+        return
+      }
+      const effective = getEffectiveTransform(item)
+      const currentCenterX = effective.x + effective.width / 2
+      const currentCenterY = effective.y + effective.height / 2
+      const targetCenterX = axis === "horizontal" ? viewWidth / 2 : currentCenterX
+      const targetCenterY = axis === "vertical" ? viewHeight / 2 : currentCenterY
+      updateItemCenter(itemId, targetCenterX, targetCenterY)
+    },
+    [getEffectiveTransform, scene.items, updateItemCenter, viewHeight, viewWidth],
+  )
+
+  const alignItem = React.useCallback(
+    (itemId: number, edge: "top" | "bottom") => {
+      const item = scene.items.find((entry) => entry.id === itemId)
+      if (!item) {
+        return
+      }
+      const effective = getEffectiveTransform(item)
+      const currentCenterX = effective.x + effective.width / 2
+      const targetCenterY =
+        edge === "top" ? effective.height / 2 : viewHeight - effective.height / 2
+      updateItemCenter(itemId, currentCenterX, targetCenterY)
+    },
+    [getEffectiveTransform, scene.items, updateItemCenter, viewHeight],
+  )
+
+  const moveItemBy = React.useCallback(
+    (itemId: number, dx: number, dy: number) => {
+      const item = scene.items.find((entry) => entry.id === itemId)
+      if (!item) {
+        return
+      }
+      if (isLocked(itemId)) {
+        return
+      }
+      const effective = getEffectiveTransform(item)
+      const nextCenterX = effective.x + effective.width / 2 + dx
+      const nextCenterY = effective.y + effective.height / 2 + dy
+      updateItemCenter(itemId, nextCenterX, nextCenterY)
+    },
+    [getEffectiveTransform, isLocked, scene.items, updateItemCenter],
+  )
+
+  React.useEffect(() => {
+    if (!selection || selection.type !== "scene") {
+      return
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return
+      }
+      let dx = 0
+      let dy = 0
+      switch (event.key) {
+        case "ArrowLeft":
+          dx = -1
+          break
+        case "ArrowRight":
+          dx = 1
+          break
+        case "ArrowUp":
+          dy = -1
+          break
+        case "ArrowDown":
+          dy = 1
+          break
+        default:
+          return
+      }
+      event.preventDefault()
+      moveItemBy(selection.itemId, dx, dy)
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [moveItemBy, selection])
 
   React.useLayoutEffect(() => {
     if (!showHandles || timeline.isPlaying || !selectedPantin) {
@@ -669,10 +869,20 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
         className="h-full w-full"
         viewBox={`${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}`}
         preserveAspectRatio="xMidYMid meet"
-        onPointerDown={clearSelection}
+        onPointerDown={(event) => {
+          if (event.button !== 0) {
+            return
+          }
+          closeContextMenu()
+          clearSelection()
+        }}
         onPointerMove={handlePointerMove}
         onPointerUp={stopDrag}
         onPointerCancel={stopDrag}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          closeContextMenu()
+        }}
       >
         {showBackground && scene.backgroundPath ? (
           <image
@@ -721,7 +931,11 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
             const inner = applyVariants(asset, item.variants, item.memberRotations)
             const viewBox = asset.viewBox ?? `0 0 ${item.width} ${item.height}`
             return (
-              <g key={item.id} transform={`rotate(${effective.rotation} ${cx} ${cy})`}>
+              <g
+                key={item.id}
+                transform={`rotate(${effective.rotation} ${cx} ${cy})`}
+                onContextMenu={(event) => { handleContextMenu(event, item.id); }}
+              >
                 <svg
                   ref={(node) => {
                     if (node) {
@@ -748,7 +962,11 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
             )
           }
           return (
-            <g key={item.id} transform={`rotate(${effective.rotation} ${cx} ${cy})`}>
+            <g
+              key={item.id}
+              transform={`rotate(${effective.rotation} ${cx} ${cy})`}
+              onContextMenu={(event) => { handleContextMenu(event, item.id); }}
+            >
               <image
                 href={item.assetPath}
                 x={effective.x}
@@ -832,6 +1050,83 @@ export function SceneView({ className, zoom = 1, showHandles = true }: SceneView
           : null}
 
       </svg>
+      {contextMenu.open && contextMenu.itemId !== null ? (
+        <div
+          ref={menuRef}
+          className="absolute z-50"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <div className="min-w-[190px] rounded-md border border-white/10 bg-[#0b1220] p-1 text-xs text-slate-200 shadow-[0_12px_24px_rgba(0,0,0,0.45)]">
+            <button
+              type="button"
+              disabled={isLocked(contextMenu.itemId)}
+              className="w-full rounded-sm px-3 py-2 text-left transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => {
+                centerItem(contextMenu.itemId as number, "horizontal")
+                closeContextMenu()
+              }}
+            >
+              Centrer horizontalement
+            </button>
+            <button
+              type="button"
+              disabled={isLocked(contextMenu.itemId)}
+              className="w-full rounded-sm px-3 py-2 text-left transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => {
+                centerItem(contextMenu.itemId as number, "vertical")
+                closeContextMenu()
+              }}
+            >
+              Centrer verticalement
+            </button>
+            <button
+              type="button"
+              disabled={isLocked(contextMenu.itemId)}
+              className="w-full rounded-sm px-3 py-2 text-left transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => {
+                alignItem(contextMenu.itemId as number, "top")
+                closeContextMenu()
+              }}
+            >
+              Placer en haut
+            </button>
+            <button
+              type="button"
+              disabled={isLocked(contextMenu.itemId)}
+              className="w-full rounded-sm px-3 py-2 text-left transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => {
+                alignItem(contextMenu.itemId as number, "bottom")
+                closeContextMenu()
+              }}
+            >
+              Placer en bas
+            </button>
+            <div className="my-1 h-px bg-white/10" />
+            <button
+              type="button"
+              disabled={isLocked(contextMenu.itemId)}
+              className="w-full rounded-sm px-3 py-2 text-left transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => {
+                dispatch({ type: "scene/duplicate-item", itemId: contextMenu.itemId as number })
+                closeContextMenu()
+              }}
+            >
+              Dupliquer
+            </button>
+            <button
+              type="button"
+              disabled={isLocked(contextMenu.itemId)}
+              className="w-full rounded-sm px-3 py-2 text-left text-[#FCA5A5] transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => {
+                dispatch({ type: "layers/remove", layerId: contextMenu.itemId as number })
+                closeContextMenu()
+              }}
+            >
+              Supprimer
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
